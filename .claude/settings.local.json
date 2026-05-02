@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find C:laragonwwwopticsProject/resources/views -type f -name *index* -o -name *home*)",
+      "Bash(php artisan:*)",
+      "Bash(findstr -i \"lens_brand\")",
+      "Bash(findstr /i \"lens\")",
+      "Bash(findstr /i \"DB_\")",
+      "Bash(mysql -u root -e \":*)",
+      "Bash(where mysql:*)",
+      "Bash(dir \"C:\\\\laragon\\\\bin\\\\mysql\\\\*\" /b)",
+      "Bash(/c/laragon/bin/mysql/mysql-8.4.3-winx64/bin/mysql -u root --password=\"\" optics -e \":*)",
+      "Bash(dangerouslyDisableSandbox=true)",
+      "Bash(/c/laragon/bin/mysql/mysql-8.4.3-winx64/bin/mysql -u root --password=\"\" optics 2)",
+      "Bash(1:*)"
+    ]
+  }
+}
