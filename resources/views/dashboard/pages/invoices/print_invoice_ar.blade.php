@@ -445,28 +445,29 @@
         }
 
         @media print {
-            @page { size: A4 portrait; margin: 6mm; }
-            html, body { background:#fff !important; }
+            @page { size: A4 portrait; margin: 5mm; }
+            html { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+            body { background:#fff !important; zoom: 90%; }
             .page-wrapper { margin:0 !important; padding:0 !important; max-width:100% !important; }
             .print-btn { display:none !important; }
-            .inv-header { padding:8px 14px !important; border-radius:0 !important; }
-            .inv-header img { height:36px !important; }
-            .inv-header .inv-title h1 { font-size:15px !important; }
-            .inv-header .inv-title .inv-num { font-size:10px !important; }
-            .inv-header .inv-meta { font-size:10px !important; line-height:1.5 !important; }
-            .info-block { padding:5px 10px !important; }
-            .block-title { font-size:9px !important; margin-bottom:4px !important; }
+            .inv-header { padding:10px 18px !important; border-radius:0 !important; }
+            .inv-header img { height:38px !important; }
+            .inv-header .inv-title h1 { font-size:18px !important; }
+            .inv-header .inv-title .inv-num { font-size:11px !important; }
+            .inv-header .inv-meta { font-size:10px !important; line-height:1.6 !important; }
+            .info-block { padding:6px 12px !important; }
+            .block-title { font-size:9px !important; margin-bottom:5px !important; }
             .info-row { padding:2px 0 !important; font-size:10px !important; }
-            .sec-label { padding:4px 10px !important; font-size:10px !important; }
-            .items-tbl thead th { padding:3px 5px !important; font-size:8px !important; }
-            .items-tbl tbody td { padding:3px 5px !important; font-size:9.5px !important; }
-            .mini-tbl th, .mini-tbl td { padding:3px 5px !important; font-size:9px !important; }
-            .sum-row { padding:3px 8px !important; font-size:10px !important; margin-bottom:3px !important; }
+            .sec-label { padding:5px 12px !important; font-size:10px !important; }
+            .items-tbl thead th { padding:5px 6px !important; font-size:9px !important; }
+            .items-tbl tbody td { padding:5px 6px !important; font-size:10px !important; }
+            .mini-tbl th, .mini-tbl td { padding:4px 6px !important; font-size:9px !important; }
+            .sum-row { padding:4px 10px !important; font-size:10px !important; margin-bottom:4px !important; }
             .sum-total .s-lbl, .sum-total .s-val { font-size:11px !important; }
-            .inv-footer { padding:5px 10px !important; }
+            .inv-footer { padding:6px 12px !important; }
             .footer-brand { font-size:11px !important; margin-bottom:2px !important; }
             .footer-url   { font-size:10px !important; margin-bottom:3px !important; }
-            .footer-note  { font-size:8px !important; line-height:1.4 !important; }
+            .footer-note  { font-size:8.5px !important; line-height:1.5 !important; }
             .inv-body { border-radius:0 !important; box-shadow:none !important; }
             .inv-header, .sec-label, .sum-total { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
         }

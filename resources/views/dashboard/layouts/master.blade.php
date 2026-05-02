@@ -758,18 +758,40 @@
     align-items: center;
     gap: 9px;
     padding: 6px 14px 6px 10px !important;
-    background: rgba(255,255,255,.08);
-    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.08) !important;
+    border: 1px solid rgba(255,255,255,.12) !important;
     border-radius: 50px;
     cursor: pointer;
     text-decoration: none !important;
-    transition: all .25s;
+    transition: background .2s, border-color .2s, box-shadow .2s;
     color: #fff !important;
     height: 44px;
+    -webkit-tap-highlight-color: transparent;
+}
+.ud-trigger:link,
+.ud-trigger:visited {
+    color: #fff !important;
+    background: rgba(255,255,255,.08) !important;
 }
 .ud-trigger:hover {
-    background: rgba(255,255,255,.15);
-    border-color: rgba(255,255,255,.25);
+    background: rgba(255,255,255,.16) !important;
+    border-color: rgba(255,255,255,.28) !important;
+}
+.ud-trigger:focus,
+.ud-trigger:active {
+    outline: none !important;
+    box-shadow: none !important;
+    background: rgba(255,255,255,.16) !important;
+    border-color: rgba(255,255,255,.28) !important;
+    color: #fff !important;
+}
+.ud-wrap.open .ud-trigger,
+.ud-wrap.open .ud-trigger:focus,
+.ud-wrap.open .ud-trigger:active {
+    background: rgba(255,255,255,.2) !important;
+    border-color: rgba(255,255,255,.35) !important;
+    box-shadow: 0 0 0 3px rgba(255,255,255,.08) !important;
+    color: #fff !important;
 }
 
 /* Avatar circle or initials */

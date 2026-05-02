@@ -98,18 +98,23 @@
     </div>
 
     @php
-        $totalDamagedQty = $entries->sum('net_qty');
+        $totalDamagedQty   = $entries->sum('net_qty');
+        $distinctLensCount = $entries->unique('glass_lense_id')->count();
     @endphp
 
     <!-- Stats -->
     <div class="stats-row">
         <div class="stat-box">
-            <div class="number">{{ $entries->count() }}</div>
-            <div class="label">Currently Damaged Items</div>
+            <div class="number">{{ $totalDamagedQty }}</div>
+            <div class="label">Total Damaged Qty — إجمالي الهالك</div>
         </div>
         <div class="stat-box">
-            <div class="number">{{ $totalDamagedQty }}</div>
-            <div class="label">Total Damaged Qty (هالك)</div>
+            <div class="number">{{ $distinctLensCount }}</div>
+            <div class="label">Distinct Lens Types — أنواع مختلفة</div>
+        </div>
+        <div class="stat-box">
+            <div class="number">{{ $entries->count() }}</div>
+            <div class="label">Entries (Rows) — عدد السجلات</div>
         </div>
     </div>
 
@@ -226,9 +231,10 @@
     <div class="summary-box">
         <h3>Summary — Currently Damaged Lenses (هالك)</h3>
         <table class="summary-table">
-            <tr><td>Currently Damaged Items</td><td>{{ $entries->count() }}</td></tr>
+            <tr><td>Distinct Lens Types — أنواع مختلفة</td><td>{{ $distinctLensCount }}</td></tr>
+            <tr><td>Entries (Rows) — عدد السجلات</td><td>{{ $entries->count() }}</td></tr>
             <tr style="border-top:2px solid #e74c3c;">
-                <td><strong>Total Damaged Quantity (هالك)</strong></td>
+                <td><strong>Total Damaged Quantity — إجمالي الهالك</strong></td>
                 <td><strong>{{ $totalDamagedQty }}</strong></td>
             </tr>
         </table>
