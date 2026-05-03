@@ -227,23 +227,25 @@
     margin-bottom: 6px; display: block;
 }
 .sidebar-card-body .form-control {
-    border: 2px solid #c5cae9;
-    border-radius: 8px;
+    border: 2px solid #c5cae9 !important;
+    border-radius: 8px !important;
     height: 44px;
     font-size: 14px;
     color: #2c3e50;
     transition: border-color .2s, box-shadow .2s;
     background: #fff;
     padding: 8px 12px;
+    box-shadow: none !important;
 }
 .sidebar-card-body .form-control:focus {
-    border-color: #3949ab;
-    box-shadow: 0 0 0 3px rgba(57,73,171,.12);
+    border-color: #3949ab !important;
+    box-shadow: 0 0 0 3px rgba(57,73,171,.12) !important;
     outline: none;
 }
 .sidebar-card-body select.form-control {
     appearance: none;
     -webkit-appearance: none;
+    border-radius: 8px !important;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%233949ab' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 12px center;
@@ -251,12 +253,13 @@
     cursor: pointer;
 }
 .sidebar-card-body select.form-control:hover {
-    border-color: #9fa8da;
+    border-color: #9fa8da !important;
 }
 .sidebar-card-body textarea.form-control {
-    height: auto;
+    height: auto !important;
     resize: vertical;
     min-height: 80px;
+    border-radius: 8px !important;
 }
 
 /* ── Action Buttons ── */
@@ -322,7 +325,7 @@
 
 <section class="content-header">
     <h1>
-        <i class="bi bi-flask"></i> Create Lab Order
+        <i class="fa fa-flask"></i> Create Lab Order
         <small>Invoice #{{ $invoice->invoice_code }}</small>
     </h1>
     <ol class="breadcrumb">
@@ -340,7 +343,7 @@
     {{-- ── Hero Banner ── --}}
     <div class="lpo-hero">
         <div class="lpo-hero-title">
-            <div class="icon-wrap"><i class="bi bi-flask"></i></div>
+            <div class="icon-wrap"><i class="fa fa-flask"></i></div>
             New Lab Order
         </div>
         <div class="lpo-hero-sub">Preparing lens purchase order for the invoice below</div>
