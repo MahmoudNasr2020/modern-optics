@@ -469,13 +469,13 @@
                                     <td>
                                         <span class="branch-badge">
                                             <i class="fa fa-building"></i>
-                                            {{ $expense->branch->name ?? 'N/A' }}
+                                            {{ optional($expense->branch)->name ?? 'N/A' }}
                                         </span>
                                     </td>
                                 @endif
                                 <td>
                                     <span class="category-badge">
-                                        {{ $expense->category->name }}
+                                        {{ optional($expense->category)->name ?? '—' }}
                                     </span>
                                 </td>
                                 <td>{{ \Str::limit($expense->description, 40) }}</td>

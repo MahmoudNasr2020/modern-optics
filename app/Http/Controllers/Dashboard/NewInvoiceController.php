@@ -630,6 +630,10 @@ class NewInvoiceController extends Controller
                 $query->where('sign', $request->sign);
             }
 
+            if ($request->lense_use) {
+                $query->where('lense_use', $request->lense_use);
+            }
+
             if ($request->type) {
                 $query->where('type', $request->type);
             }
@@ -662,6 +666,7 @@ class NewInvoiceController extends Controller
                     'size' => $product->size,
                     'color' => $product->color,
                     'brand_segment' => $product->brand_segment,
+                    'lense_use' => $product->lense_use,
                     'power' => $product->power,
                     'sign' => $product->sign,
                     'type' => $product->type,

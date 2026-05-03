@@ -82,10 +82,12 @@
                 <h2><i class="bi bi-flask" style="opacity:.7;margin-right:8px;"></i>{{ $po->po_number }}</h2>
                 <div class="meta">
                     <i class="bi bi-receipt"></i> Invoice:
+                    @if($po->invoice)
                     <a href="{{ route('dashboard.invoice.show', $po->invoice->invoice_code) }}"
-                       style="color:#7ec8f4;font-weight:700;">{{ $po->invoice->invoice_code ?? '-' }}</a>
+                       style="color:#7ec8f4;font-weight:700;">{{ $po->invoice->invoice_code }}</a>
+                    @else <span style="color:#7ec8f4;">—</span> @endif
                     &nbsp;·&nbsp;
-                    <i class="bi bi-person"></i> {{ $po->invoice->customer->english_name ?? '-' }}
+                    <i class="bi bi-person"></i> {{ optional(optional($po->invoice)->customer)->english_name ?? '-' }}
                     &nbsp;·&nbsp;
                     <i class="bi bi-building"></i> {{ $po->branch->name ?? '-' }}
                 </div>
@@ -169,12 +171,14 @@
                 <div class="info-row">
                     <span class="key">Invoice</span>
                     <span class="val">
+                        @if($po->invoice)
                         <a href="{{ route('dashboard.invoice.show', $po->invoice->invoice_code) }}" style="color:#3498db;font-weight:600;">
                             {{ $po->invoice->invoice_code }} <i class="bi bi-box-arrow-up-right" style="font-size:11px;"></i>
                         </a>
+                        @else — @endif
                     </span>
                 </div>
-                <div class="info-row"><span class="key">Customer</span><span class="val">{{ $po->invoice->customer->english_name ?? '-' }}</span></div>
+                <div class="info-row"><span class="key">Customer</span><span class="val">{{ optional(optional($po->invoice)->customer)->english_name ?? '-' }}</span></div>
                 <div class="info-row"><span class="key">Ordered By</span><span class="val">{{ $po->orderedBy->name ?? '-' }}</span></div>
                 <div class="info-row"><span class="key">Ordered At</span><span class="val">{{ $po->ordered_at ? $po->ordered_at->format('d/m/Y H:i') : $po->created_at->format('d/m/Y H:i') }}</span></div>
                 @if($po->isReceived())

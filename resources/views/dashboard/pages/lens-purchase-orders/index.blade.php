@@ -249,7 +249,7 @@
                                 <span style="color:#aaa;">—</span>
                             @endif
                         </td>
-                        <td style="font-size:13px;">{{ $po->invoice->customer->english_name ?? '—' }}</td>
+                        <td style="font-size:13px;">{{ optional(optional($po->invoice)->customer)->english_name ?? '—' }}</td>
                         <td style="font-size:13px;">{{ $po->branch->name ?? '—' }}</td>
                         <td style="font-size:13px;">{{ $po->lab_name ?? '—' }}</td>
                         <td class="text-center">

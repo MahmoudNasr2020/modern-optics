@@ -128,8 +128,9 @@ class EyeTestController extends Controller
 
     public function StoreNewEyTest(Request $request,$id)
     {
-
-        $customer_id = Customer::where('customer_id', $id)->first()->id;
+        $customerObj = Customer::where('customer_id', $id)->first();
+        if (!$customerObj) { abort(404, 'Customer not found.'); }
+        $customer_id = $customerObj->id;
 
         $rules = [
             'PDLeft' => 'required',

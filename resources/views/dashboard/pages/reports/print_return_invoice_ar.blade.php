@@ -160,14 +160,14 @@
                 <table>
                     <tr>
                         <td>
-                            {{$invoice->customer->customer_id}} :<span class="data">كود العميل </span><br/>
-                            {{$invoice->customer->english_name}} :<span class="data">العميل </span><br/>
-                            {{$invoice->customer->mobile_number}} :<span class="data">هاتف العميل </span><br/>
+                            {{ optional($invoice->customer)->customer_id ?? '—' }} :<span class="data">كود العميل </span><br/>
+                            {{ optional($invoice->customer)->english_name ?? '—' }} :<span class="data">العميل </span><br/>
+                            {{ optional($invoice->customer)->mobile_number ?? '—' }} :<span class="data">هاتف العميل </span><br/>
                             {{$invoice->notes??'-'}} :<span class="data">ملاحظات </span><br/>
                         </td>
                         <td>
-                            {{$invoice->user->first_name}} :<span class="data">البائع </span><br/>
-                            {{$invoice->doctor->name}} :<span class="data">الدكتور </span><br/>
+                            {{ optional($invoice->user)->first_name ?? '—' }} :<span class="data">البائع </span><br/>
+                            {{ optional($invoice->doctor)->name ?? '—' }} :<span class="data">الدكتور </span><br/>
                             {{$invoice->status}} :<span class="data">الحاله </span><br/>
                         </td>
                     </tr>

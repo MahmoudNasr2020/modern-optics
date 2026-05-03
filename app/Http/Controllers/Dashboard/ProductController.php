@@ -154,7 +154,11 @@ class ProductController extends Controller
 
     public function index(Request $request)
     {
+        // By default hide archived (is_active=false) unless ?show_archived=1
+        $showArchived = $request->input('show_archived') == '1';
+
         $products = Product::with(['category', 'brand', 'model'])
+            ->when(!$showArchived, fn($q) => $q->where('is_active', true))
             ->when($request->search, function ($query) use ($request) {
                 $query->where(function($q) use ($request){
                     $q->where('product_id', 'like', '%' . $request->search . '%')
@@ -164,7 +168,8 @@ class ProductController extends Controller
             ->latest()
             ->paginate(10);
 
-        $totalItems = Product::count();
+        $totalItems    = Product::where('is_active', true)->count();
+        $archivedCount = Product::where('is_active', false)->count();
 
         // Main (Store) branch stock — keyed by product id for O(1) lookup in view
         $mainBranch   = \App\Branch::where('is_main', true)->first();
@@ -179,6 +184,8 @@ class ProductController extends Controller
         return view('dashboard.pages.products.index', compact(
             'products',
             'totalItems',
+            'archivedCount',
+            'showArchived',
             'mainBranch',
             'storeStockMap'
         ));
@@ -225,21 +232,26 @@ class ProductController extends Controller
                 ->withInput();
         }*/
 
+        // Categories that require model + color + size
+        $catId = (int) $request->category;
+        $needsModelColorSize = in_array($catId, [1, 2]);   // Sun Glasses, Frames
+        $needsPowerType      = in_array($catId, [6]);       // Reading Glasses
+
         $rules = [
-            'product_id' => 'unique:products',
-            'barcode'    => 'nullable|string|max:100|unique:products,barcode',
-            'description' => 'required',
-            'price' => 'required|numeric|min:0',
-            'retail_price' => 'required|numeric|min:0',
-            'tax' => 'required|numeric|min:0',
-            'color' => 'required',
-            'size' => 'required',
-            'model' => 'required',
-            'discount_value' => 'nullable|numeric|min:0',
+            'product_id'    => 'unique:products',
+            'barcode'       => 'nullable|string|max:100|unique:products,barcode',
+            'description'   => 'required',
+            'price'         => 'required|numeric|min:0',
+            'retail_price'  => 'required|numeric|min:0',
+            'tax'           => 'required|numeric|min:0',
+            'color'         => $needsModelColorSize ? 'nullable' : 'nullable',
+            'size'          => $needsModelColorSize ? 'nullable' : 'nullable',
+            'model'         => $needsModelColorSize ? 'required' : 'nullable',
+            'discount_value'=> 'nullable|numeric|min:0',
             'discount_type' => 'nullable|in:fixed,percentage',
-           // 'branch' => 'required|exists:branches,id',
-            'category' => 'required|exists:categories,id',
-            'brand' => 'required|exists:brands,id',
+            'category'      => 'required|exists:categories,id',
+            'brand'         => 'required|exists:brands,id',
+            'power'         => $needsPowerType ? 'required|numeric|min:0.25|max:12' : 'nullable|numeric',
         ];
 
         $messages = [
@@ -273,14 +285,14 @@ class ProductController extends Controller
         $request->validate($rules, $messages);
 
         $product = new Product();
-        $product->product_id = $request->product_id;
-        $product->barcode    = $request->filled('barcode') ? trim($request->barcode) : null;
+        $product->product_id  = $request->product_id;
+        $product->barcode     = $request->filled('barcode') ? trim($request->barcode) : null;
         $product->description = $request->description;
         $product->category_id = $request->category;
-        $product->brand_id = $request->brand;
-        $product->model_id = $request->model;
-        $product->color = $request->color;
-        $product->size = $request->size;
+        $product->brand_id    = $request->brand;
+        $product->model_id    = $request->model ?: 0;   // 0 when no model (chains, services, etc.)
+        $product->color       = $request->color ?? '';
+        $product->size        = $request->size  ?? '';
        // $product->branch_id = $request->branch;
         $product->price = $request->price;
         $product->retail_price = $request->retail_price;
@@ -781,46 +793,44 @@ class ProductController extends Controller
 
     public function deleteProduct($id)
     {
-        $user = auth()->user();
-        $product = Product::with('branchStocks.branch')->find($id);
+        $product = Product::find($id);
 
         if (!$product) {
-            session()->flash('error', 'Product not found.');
+            session()->flash('error', 'المنتج غير موجود.');
             return redirect()->back();
         }
 
-        /*
-        // لو عايز تفعل صلاحيات الفروع
-        if (!$user->canAccessBranch($product->branch_id)) {
-            abort(403, 'You do not have permission to delete this product.');
+        $result = $product->safeDelete();
+
+        switch ($result['action']) {
+            case 'blocked':
+                session()->flash('error', $result['message']);
+                break;
+            case 'archived':
+                session()->flash('warning', $result['message']);
+                break;
+            case 'deleted':
+                session()->flash('success', $result['message']);
+                break;
         }
-        */
 
-        $branchesWithStock = $product->branchStocks()
-            ->where(function ($q) {
-                $q->where('quantity', '>', 0)
-                    ->orWhere('reserved_quantity', '>', 0);
-            })
-            ->with('branch')
-            ->get();
+        return redirect()->back();
+    }
 
-        if ($branchesWithStock->count() > 0) {
+    /**
+     * Restore an archived (inactive) product.
+     */
+    public function restoreProduct($id)
+    {
+        $product = Product::find($id);
 
-            $branchNames = $branchesWithStock->map(function ($stock) {
-                return $stock->branch->name . " (Qty: {$stock->quantity}, Reserved: {$stock->reserved_quantity})";
-            })->implode(' , ');
-
-            session()->flash('error',
-                "Cannot delete product. Please zero stock in all branches first.Stock available: " . $branchNames
-            );
-
+        if (!$product) {
+            session()->flash('error', 'المنتج غير موجود.');
             return redirect()->back();
         }
 
-
-        $product->delete();
-
-        session()->flash('success', 'Product deleted successfully!');
+        $product->restore();
+        session()->flash('success', 'تم استعادة المنتج وتفعيله مجدداً.');
         return redirect()->back();
     }
 
@@ -911,31 +921,35 @@ class ProductController extends Controller
                 $brand = $brandMap[$brandKey];
             }
 
+            // Categories that require a model (Frames & Sunglasses only)
+            $catNeedsModel = $cat && in_array((int)$cat->id, [1, 2]);
+
             $model = null;
-            if (!$modelKey) {
-                $rowErrors[] = 'Missing model';
-            } elseif (!isset($modelMap[$modelKey])) {
-                $rowErrors[] = 'Model "'.($row['model'] ?? '').'" not found in system';
-            } else {
+            if ($catNeedsModel) {
+                if (!$modelKey) {
+                    $rowErrors[] = 'Missing model (required for Frames / Sunglasses)';
+                } elseif (!isset($modelMap[$modelKey])) {
+                    $rowErrors[] = 'Model "'.($row['model'] ?? '').'" not found in system';
+                } else {
+                    $model = $modelMap[$modelKey];
+                }
+            } elseif ($modelKey && isset($modelMap[$modelKey])) {
+                // Model provided but optional — use it anyway
                 $model = $modelMap[$modelKey];
             }
 
-            // ── 2. Validate العلاقات (بس لو الـ 3 موجودين) ───────
-            if ($cat && $brand && $model) {
-
-                // هل البراند تبع الكاتجوري دي؟
+            // ── 2. Validate relationships ──────────────────────────
+            if ($cat && $brand) {
+                // Brand must belong to the selected category
                 if ((int)$brand->category_id !== (int)$cat->id) {
                     $rowErrors[] = 'Brand "'.($row['brand'] ?? '').'" does not belong to category "'.($row['category'] ?? '').'"';
                 }
+            }
 
-                // هل الموديل تبع البراند ده؟
+            if ($model && $brand) {
+                // Model must belong to the brand
                 if ((int)$model->brand_id !== (int)$brand->id) {
                     $rowErrors[] = 'Model "'.($row['model'] ?? '').'" does not belong to brand "'.($row['brand'] ?? '').'"';
-                }
-
-                // هل الموديل تبع الكاتجوري دي؟ (تحقق إضافي)
-                if ((int)$model->category_id !== (int)$cat->id) {
-                    $rowErrors[] = 'Model "'.($row['model'] ?? '').'" does not belong to category "'.($row['category'] ?? '').'"';
                 }
             }
 
@@ -971,21 +985,34 @@ class ProductController extends Controller
             // ── Create product ────────────────────────────────────────────
             $newProduct = null;
             try {
+                $retailPrice    = (float)($row['retail_price']  ?? 0);
+                $discountType   = in_array(($row['discount_type'] ?? ''), ['fixed','percentage'])
+                    ? $row['discount_type'] : 'fixed';
+                $discountValue  = (float)($row['discount_value'] ?? 0);
+                $tax            = (float)($row['tax'] ?? 0);
+
+                // Calculate total (same logic as manual add)
+                if ($discountType === 'fixed') {
+                    $total = $tax + ($retailPrice - $discountValue);
+                } else {
+                    $total = $tax + ($retailPrice - ($retailPrice * ($discountValue / 100)));
+                }
+
                 $newProduct = Product::create([
                     'product_id'     => $productId,
                     'barcode'        => $barcode,
                     'description'    => $desc,
                     'category_id'    => $cat->id,
                     'brand_id'       => $brand->id,
-                    'model_id'       => $model->id,
-                    'color'          => trim($row['color']          ?? ''),
-                    'size'           => trim($row['size']           ?? ''),
-                    'price'          => (float)($row['price']         ?? 0),
-                    'retail_price'   => (float)($row['retail_price']  ?? 0),
-                    'tax'            => (float)($row['tax']           ?? 0),
-                    'discount_type'  => in_array(($row['discount_type'] ?? ''), ['fixed','percentage'])
-                        ? $row['discount_type'] : 'fixed',
-                    'discount_value' => (float)($row['discount_value'] ?? 0),
+                    'model_id'       => $model ? $model->id : 0,
+                    'color'          => trim($row['color']  ?? ''),
+                    'size'           => trim($row['size']   ?? ''),
+                    'price'          => (float)($row['price'] ?? 0),
+                    'retail_price'   => $retailPrice,
+                    'tax'            => $tax,
+                    'total'          => $total,
+                    'discount_type'  => $discountType,
+                    'discount_value' => $discountValue,
                     'brand_segment'  => !empty($row['brand_segment']) ? $row['brand_segment'] : null,
                     'power'          => !empty($row['power'])         ? $row['power']         : null,
                     'sign'           => !empty($row['sign'])          ? $row['sign']          : null,

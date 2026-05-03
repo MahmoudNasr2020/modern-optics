@@ -237,6 +237,7 @@
                                         <select name="category" id="category" class="form-control" required>
                                             <option value="">Select Category</option>
                                             @foreach($categories as $cat)
+                                                @if($cat->id == 4) @continue @endif
                                                 <option value="{{ $cat->id }}">{{ $cat->category_name }}</option>
                                             @endforeach
                                         </select>
@@ -261,13 +262,15 @@
                             </div>
                         </div>
 
+                        {{-- ══ Frames / Sunglasses: Model + Color + Size ══ --}}
+                        <div id="fieldGroup-model-color-size" style="display:none;">
                         <div class="row">
                             {{-- Model + quick-add --}}
                             <div class="col-md-4">
                                 <div class="form-group">
                                     <label>Model <span class="required">*</span></label>
                                     <div class="select-add-wrap">
-                                        <select name="model" id="model" class="form-control" disabled required>
+                                        <select name="model" id="model" class="form-control" disabled>
                                             <option value="">Select Brand First</option>
                                         </select>
                                         <button type="button" class="btn-add-inline" onclick="openModal('modelModal')" title="Add new model">+</button>
@@ -288,6 +291,57 @@
                                 </div>
                             </div>
                         </div>
+                        </div>{{-- /fieldGroup-model-color-size --}}
+
+                        {{-- ══ Reading Glasses: Power + Type ══ --}}
+                        <div id="fieldGroup-power-type" style="display:none;">
+                        <div class="row" style="margin-top:8px;">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label><i class="bi bi-eyeglasses"></i> Power</label>
+                                    <input type="text" inputmode="decimal" class="form-control"
+                                           name="power" id="power"
+                                           list="power-datalist"
+                                           value="{{ old('power') }}"
+                                           placeholder="e.g. 1.50 — اختر أو اكتب">
+                                    <datalist id="power-datalist">
+                                        <option value="0.50">
+                                        <option value="1.00">
+                                        <option value="2.00">
+                                        <option value="4.00">
+                                        <option value="6.00">
+                                    </datalist>
+                                    <p class="help-text">اختار من القائمة أو اكتب القيمة مباشرة</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label><i class="bi bi-layout-three-columns"></i> Frame Type</label>
+                                    <select name="type" id="type" class="form-control">
+                                        <option value="">Select Type</option>
+                                        <option value="folding metal" {{ old('type') == 'folding metal' ? 'selected' : '' }}>FOLDING METAL</option>
+                                        <option value="folding plastic" {{ old('type') == 'folding plastic' ? 'selected' : '' }}>FOLDING PLASTIC</option>
+                                        <option value="metal frame" {{ old('type') == 'metal frame' ? 'selected' : '' }}>METAL FRAME</option>
+                                        <option value="plastic frame" {{ old('type') == 'plastic frame' ? 'selected' : '' }}>PLASTIC FRAME</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        </div>{{-- /fieldGroup-power-type --}}
+
+                        {{-- ══ Contact Lens Notice ══ --}}
+                        <div id="contactLens-notice" style="display:none;">
+                            <div style="background:#fff3cd;border:2px solid #ffc107;border-radius:10px;padding:18px 20px;margin-top:12px;">
+                                <div style="display:flex;align-items:center;gap:14px;">
+                                    <i class="bi bi-info-circle-fill" style="font-size:26px;color:#e67e22;flex-shrink:0;"></i>
+                                    <div>
+                                        <strong style="color:#7d4e00;font-size:15px;">Contact Lens products have a dedicated screen</strong><br>
+                                        <span style="font-size:13px;color:#7d4e00;">Please use the <a href="{{ route('dashboard.contact-lenses.create') }}" style="color:#e67e22;font-weight:700;text-decoration:underline;">Contact Lens screen</a> to add contact lenses with full specs (Brand Segment, Lens Type, Sign, Power).</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>{{-- /contactLens-notice --}}
+
                     </div>
 
                     {{-- Description --}}
@@ -728,25 +782,52 @@
             });
         }
 
+        // ──────────────────────────────────────────────────────────
+        // Category → Field Visibility Map
+        //  1 = Sun Glasses   2 = Frames        → model + color + size
+        //  6 = Reading Glasses                  → power + type
+        //  4 = CONTACT LENS                     → notice / redirect
+        //  3 = O L LENSES, 7 = Chains, 8 = C.L Solution, 10 = Services → brand only
+        // ──────────────────────────────────────────────────────────
+        var CAT_MODEL_COLOR_SIZE = [1, 2];          // show model/color/size row
+        var CAT_POWER_TYPE       = [6];             // show power/type row
+        var CAT_CONTACT_LENS     = [4];             // show redirect notice
+
+        function applyCategoryFields(catId) {
+            catId = parseInt(catId) || 0;
+            var showMCS  = CAT_MODEL_COLOR_SIZE.indexOf(catId) >= 0;
+            var showPT   = CAT_POWER_TYPE.indexOf(catId) >= 0;
+            var showCL   = CAT_CONTACT_LENS.indexOf(catId) >= 0;
+
+            $('#fieldGroup-model-color-size')[showMCS  ? 'show' : 'hide']();
+            $('#fieldGroup-power-type')[showPT   ? 'show' : 'hide']();
+            $('#contactLens-notice')[showCL   ? 'show' : 'hide']();
+
+            // Disable submit when contact lens is selected (use dedicated screen)
+            $('.btn-submit').prop('disabled', showCL);
+
+            // Model select: require only when visible
+            $('#model').prop('required', showMCS);
+            if (!showMCS) {
+                $('#model').html('<option value="">Select Brand First</option>').prop('disabled', true);
+            }
+        }
+
         $(document).ready(function() {
             // Main form: category change
             $('#category').on('change', function() {
-                loadBrandsByCategory($(this).val(), '#brand', null);
-                $('#model').html('<option value="">Select Brand First</option>').prop('disabled', true);
-                // Update type options
-                var catText = $(this).find('option:selected').text();
-                if (catText === 'OTHERS (CHAINS)') {
-                    $('#type').html('<option value="">Select Type</option><option value="multicolor">MULTICOLOR</option><option value="silver">SILVER</option><option value="gold">GOLD</option>');
-                } else if (catText === 'OTHERS (C.L SOLUTION)') {
-                    $('#type').html('<option value="">Select Type</option><option value="opti free">OPTI FREE</option>');
-                } else {
-                    $('#type').html('<option value="">Select Type</option><option value="folding metal">FOLDING METAL</option><option value="folding plastic">FOLDING PLASTIC</option><option value="metal frame">METAL FRAME</option><option value="plastic frame">PLASTIC FRAME</option>');
-                }
+                var catId  = $(this).val();
+                loadBrandsByCategory(catId, '#brand', null);
+                applyCategoryFields(catId);
             });
 
             // Main form: brand change
             $('#brand').on('change', function() {
-                loadModelsByBrand($(this).val(), '#model', null);
+                // Only load models when model field group is visible
+                var catId = parseInt($('#category').val()) || 0;
+                if (CAT_MODEL_COLOR_SIZE.indexOf(catId) >= 0) {
+                    loadModelsByBrand($(this).val(), '#model', null);
+                }
             });
 
             // Model modal: category change → load brands

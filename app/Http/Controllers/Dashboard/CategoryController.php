@@ -114,7 +114,7 @@ class CategoryController extends Controller
                         })
                         ->get()
                         ->map(function($stock) {
-                            return $stock->branch->name . " (Qty: {$stock->quantity}, Reserved: {$stock->reserved_quantity})";
+                            return (optional($stock->branch)->name ?? 'Branch#'.$stock->branch_id) . " (Qty: {$stock->quantity}, Reserved: {$stock->reserved_quantity})";
                         })->implode(' , ');
 
                     return $product->name . " => " . $stocks;

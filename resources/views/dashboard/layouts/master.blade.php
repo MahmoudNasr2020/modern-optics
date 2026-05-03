@@ -525,7 +525,8 @@
                             $udInit  = $udUser ? strtoupper(substr($udUser->first_name ?? 'U', 0, 1)) : 'U';
                             $udName  = trim(optional($udUser)->first_name . ' ' . optional($udUser)->last_name);
                             $udEmail = optional($udUser)->email;
-                            $udRole  = optional($udUser->roles->first())->display_name ?? optional($udUser->roles->first())->name ?? 'User';
+                            $udFirstRole = $udUser ? optional($udUser->roles->first()) : null;
+                            $udRole  = optional($udFirstRole)->display_name ?? optional($udFirstRole)->name ?? 'User';
                             $udBranch= optional(optional($udUser)->branch)->name ?? null;
                         @endphp
 

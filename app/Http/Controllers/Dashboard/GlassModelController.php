@@ -40,9 +40,10 @@ class GlassModelController extends Controller
     public function index(Request $request) {
         $categories = Category::all();
         $brands = Brand::all();
-        $models = glassModel::when($request->search, function($query) use ($request) {
-            return $query->where('model_id', 'like', '%' . $request->search . '%');
-        })->latest()->paginate(10);
+        $models = glassModel::with(['category', 'brand'])
+            ->when($request->search, function($query) use ($request) {
+                return $query->where('model_id', 'like', '%' . $request->search . '%');
+            })->latest()->paginate(10);
         return view('dashboard.pages.models.index', compact(['models', 'categories', 'brands']));
     }
 

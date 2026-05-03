@@ -603,14 +603,14 @@
                     </td>
                     <td>
                     <span style="font-size:12px; color:#7d3c98; font-weight:600;">
-                        {{ $expense->category->name ?? '—' }}
+                        {{ optional($expense->category)->name ?? '—' }}
                     </span>
                         @if($expense->category)
                             <br><small style="color:#aaa;">{{ ucfirst($expense->category->type ?? '') }}</small>
                         @endif
                     </td>
                     @if(!$filterBranchId)
-                        <td>{{ $expense->branch->name ?? '—' }}</td>
+                        <td>{{ optional($expense->branch)->name ?? '—' }}</td>
                     @endif
                     <td>{{ $expense->vendor_name ?? '—' }}</td>
                     <td style="font-size:12px;">{{ $expense->receipt_number ?? '—' }}</td>

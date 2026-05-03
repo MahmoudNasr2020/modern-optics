@@ -316,7 +316,7 @@ class LensPurchaseOrderController extends Controller
                         'quantity'       => $receivedQty,
                         'source_type'    => 'purchase_order',
                         'source_id'      => $po->id,
-                        'notes'          => "Received - PO# {$po->po_number} | Invoice #{$po->invoice->invoice_code}",
+                        'notes'          => "Received - PO# {$po->po_number} | Invoice #" . (optional($po->invoice)->invoice_code ?? '—'),
                         'user_id'        => auth()->id(),
                     ]);
 

@@ -153,7 +153,7 @@
     {{--<h1>Modern Topics</h1><br>--}}
     <div style="">
         <div style="text-align: left">
-            <h4>Customer Name: {{ $eyeTest->customer->english_name }}</h4>
+            <h4>Customer Name: {{ optional($eyeTest->customer)->english_name ?? '—' }}</h4>
             <h5>Date: {{ $eyeTest->created_at->format('Y-m-d') }}</h5>
         </div>
         <!-- العنوان -->

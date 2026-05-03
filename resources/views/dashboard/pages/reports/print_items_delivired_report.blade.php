@@ -387,7 +387,7 @@
 
                     <td>{{ $item->type ?? '-' }}</td>
 
-                    <td>{{ $item->product->category->category_name ?? '-' }}</td>
+                    <td>{{ optional(optional($item->product)->category)->category_name ?? '-' }}</td>
 
                     <td>{{ $item->invoice->pickup_date ?? '-' }}</td>
 

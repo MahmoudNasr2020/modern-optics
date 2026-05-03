@@ -472,9 +472,9 @@
                         <tr>
                             <td>{{ $expense->expense_date->format('d M Y') }}</td>
                             @if(auth()->user()->canSeeAllBranches())
-                                <td>{{ $expense->branch->name ?? 'N/A' }}</td>
+                                <td>{{ optional($expense->branch)->name ?? 'N/A' }}</td>
                             @endif
-                            <td>{{ $expense->category->name }}</td>
+                            <td>{{ optional($expense->category)->name ?? '—' }}</td>
                             <td>{{ \Str::limit($expense->description, 50) }}</td>
                             <td>{{ $expense->vendor_name ?? '-' }}</td>
                             <td>{{ str_replace('_', ' ', $expense->payment_method) }}</td>

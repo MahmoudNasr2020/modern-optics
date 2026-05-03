@@ -37,12 +37,12 @@
                         <li class="dropdown user user-menu">
                             <a href="#" class="dropdown-toggle" data-toggle="dropdown">
                                 <i class="glyphicon glyphicon-user"></i>
-                                <span>{{ auth()->user()->first_name . ' ' . auth()->user()->last_name  }} <i class="caret"></i></span>
+                                <span>{{ (optional(auth()->user())->first_name ?? '') . ' ' . (optional(auth()->user())->last_name ?? '') }} <i class="caret"></i></span>
                             </a>
                             <ul class="dropdown-menu">
                                 <!-- User image -->
                                 <li class="user-header bg-light-blue">
-                                    <img src="{{url('/storage/uploads/images/users/') .'/' . auth()->user()->image}}" class="img-circle" alt="User Image" />
+                                    <img src="{{url('/storage/uploads/images/users/') .'/' . (optional(auth()->user())->image ?? 'default.png')}}" class="img-circle" alt="User Image" />
                                 </li>
 
                                 <!-- Menu Footer-->

@@ -161,14 +161,14 @@
                 <table>
                     <tr>
                         <td>
-                            <span class="data">Customer Id: </span>{{$invoice->customer->customer_id}}<br/>
-                            <span class="data">Customer: </span>{{$invoice->customer->english_name}}<br/>
-                            <span class="data">Customer Phone: </span>{{$invoice->customer->mobile_number}}<br/>
+                            <span class="data">Customer Id: </span>{{ optional($invoice->customer)->customer_id ?? '—' }}<br/>
+                            <span class="data">Customer: </span>{{ optional($invoice->customer)->english_name ?? '—' }}<br/>
+                            <span class="data">Customer Phone: </span>{{ optional($invoice->customer)->mobile_number ?? '—' }}<br/>
                             <span class="data">Notes: </span>{{$invoice->notes??'-'}}<br/>
                         </td>
                         <td>
-                            <span class="data">Sales: </span>{{$invoice->user->first_name}}<br/>
-                            <span class="data">Doctor: </span>{{$invoice->doctor->name}}<br/>
+                            <span class="data">Sales: </span>{{ optional($invoice->user)->first_name ?? '—' }}<br/>
+                            <span class="data">Doctor: </span>{{ optional($invoice->doctor)->name ?? '—' }}<br/>
                             <span class="data">Status: </span>{{$invoice->status}}<br/>
                              <span class="data">Return Reason: </span>{{$invoice->return_reason??'-'}}<br/>
                         </td>

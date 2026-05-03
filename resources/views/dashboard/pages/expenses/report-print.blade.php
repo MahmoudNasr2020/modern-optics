@@ -153,7 +153,7 @@
     @foreach($expenses as $expense)
         <tr>
             <td>{{ $expense->expense_date->format('d/m/Y') }}</td>
-            <td>{{ $expense->category->name }}</td>
+            <td>{{ optional($expense->category)->name ?? '—' }}</td>
             <td>{{ $expense->description }}</td>
             <td>{{ $expense->vendor_name ?? '-' }}</td>
             <td style="text-align: right;">{{ number_format($expense->amount, 2) }}</td>

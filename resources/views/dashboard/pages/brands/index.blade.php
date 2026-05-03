@@ -427,7 +427,7 @@
                                 </td>
 
                                 <td>
-                                    {{ $brand->category->category_name }}
+                                    {{ optional($brand->category)->category_name ?? '—' }}
                                 </td>
 
                                 <td>

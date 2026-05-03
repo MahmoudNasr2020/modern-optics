@@ -567,81 +567,152 @@
         var BRANDS_URL  = "{{ route('dashboard.filter-brands-by-category-id') }}";
         var MODELS_URL  = "{{ route('dashboard.filter-models-by-category-and-brand-id') }}";
 
-        /* ── Initial dropdown snapshots (للـ reset) ─────── */
+        /* ── Initial dropdown snapshots (for reset) ────────── */
         var initialBrandsHtml = $('#sm_brand_id').html();
         var initialModelsHtml = $('#sm_model_id').html();
 
-        /* /!* ── Category change → reload brands & models ───── *!/
-         $(document).on('change', '#sm_category_id', function () {
-             var catId = $(this).val();
+        /* ── Category-aware field groups ─────────────────────
+         *  cat 4  = Contact Lens  → CL fields (segment/lense_use/sign/power)
+         *  cat 1,2 = Frames/Sun   → standard fields (size/color/type)
+         *  cat 6  = Reading Glass → glasses fields (power/type)
+         *  cat 3,7,8,10 = others  → brand only, no row-2 fields
+         *  ""     = All           → standard fields (default)
+         * ─────────────────────────────────────────────────── */
+        var SM_CAT_CL       = 4;
+        var SM_CAT_STD      = [0, 1, 2];   /* 0 = "All" */
+        var SM_CAT_GLASSES  = [6];
+        var SM_CAT_MODEL    = [0, 1, 2, 4]; /* show model col for these */
 
-             $('#sm_brand_id').html(initialBrandsHtml);
-             $('#sm_model_id').html(initialModelsHtml);
+        function smApplyCategoryFields(catId) {
+            catId = parseInt(catId) || 0;
 
-             if (!catId) { return; }
+            /* ── Show correct row-2 ── */
+            if (catId === SM_CAT_CL) {
+                $('#sm_row_standard').hide();
+                $('#sm_row_cl').show();
+                $('#sm_row_glasses').hide();
+            } else if ($.inArray(catId, SM_CAT_GLASSES) !== -1) {
+                $('#sm_row_standard').hide();
+                $('#sm_row_cl').hide();
+                $('#sm_row_glasses').show();
+            } else if ($.inArray(catId, SM_CAT_STD) !== -1) {
+                $('#sm_row_standard').show();
+                $('#sm_row_cl').hide();
+                $('#sm_row_glasses').hide();
+            } else {
+                /* others — brand only, no row-2 */
+                $('#sm_row_standard').hide();
+                $('#sm_row_cl').hide();
+                $('#sm_row_glasses').hide();
+            }
 
-             $.ajax({
-                 url: BRANDS_URL, type: 'POST',
-                 data: { category_id: catId },
-                 headers: { 'X-CSRF-TOKEN': CSRF },
-                 success: function (brands) {
-                     var html = '<option value="">All Brands</option>';
-                     $.each(brands, function (i, b) {
-                         html += '<option value="' + b.id + '">' + b.brand_name + '</option>';
-                     });
-                     $('#sm_brand_id').html(html);
-                 }
-             });
+            /* ── Show/hide model column ── */
+            if ($.inArray(catId, SM_CAT_MODEL) !== -1) {
+                $('#sm_model_col').show();
+            } else {
+                $('#sm_model_col').hide();
+                $('#sm_model_id').val('');
+            }
 
-             $.ajax({
-                 url: MODELS_URL, type: 'POST',
-                 data: { category_id: catId, brand_id: '' },
-                 headers: { 'X-CSRF-TOKEN': CSRF },
-                 success: function (models) {
-                     var html = '<option value="">All Models</option>';
-                     $.each(models, function (i, m) {
-                         html += '<option value="' + m.id + '">' + m.model_id + '</option>';
-                     });
-                     $('#sm_model_id').html(html);
-                 }
-             });
-         });
+            /* ── Rename model label for CL ── */
+            if (catId === SM_CAT_CL) {
+                $('#sm_model_label_text').text('Product Name');
+            } else {
+                $('#sm_model_label_text').text('Model');
+            }
+        }
 
-         /!* ── Brand change → reload models ───────────────── *!/
-         $(document).on('change', '#sm_brand_id', function () {
-             var brandId = $(this).val();
-             var catId   = $('#sm_category_id').val();
+        /* Init on page load — default = "All Categories" → standard row */
+        smApplyCategoryFields($('#sm_category_id').val());
 
-             if (!brandId) {
-                 /!* رجّع الـ models للكل *!/
-                 $('#sm_category_id').trigger('change');
-                 return;
-             }
+        /* ── Category change → reload brands & models ───────── */
+        $(document).on('change', '#sm_category_id', function () {
+            var catId = $(this).val();
 
-             $('#sm_model_spinner').show();
+            /* reset brand & model dropdowns */
+            $('#sm_brand_id').html(initialBrandsHtml);
+            $('#sm_model_id').html(initialModelsHtml);
 
-             $.ajax({
-                 url: MODELS_URL, type: 'POST',
-                 data: { brand_id: brandId, category_id: catId },
-                 headers: { 'X-CSRF-TOKEN': CSRF },
-                 success: function (models) {
-                     var html = '<option value="">All Models</option>';
-                     $.each(models, function (i, m) {
-                         html += '<option value="' + m.id + '">' + m.model_id + '</option>';
-                     });
-                     $('#sm_model_id').html(html);
-                 },
-                 complete: function () { $('#sm_model_spinner').hide(); }
-             });
-         });*/
+            /* apply field group visibility */
+            smApplyCategoryFields(catId);
 
-        /* ── Reset ───────────────────────────────────────── */
+            if (!catId) { return; }
+
+            /* reload brands for this category */
+            $.ajax({
+                url: BRANDS_URL, type: 'POST',
+                data: { category_id: catId },
+                headers: { 'X-CSRF-TOKEN': CSRF },
+                success: function (brands) {
+                    var html = '<option value="">All Brands</option>';
+                    $.each(brands, function (i, b) {
+                        html += '<option value="' + b.id + '">' + b.brand_name + '</option>';
+                    });
+                    $('#sm_brand_id').html(html);
+                }
+            });
+
+            /* reload models for this category */
+            var modelLabel = parseInt(catId) === SM_CAT_CL ? 'All Product Names' : 'All Models';
+            $.ajax({
+                url: MODELS_URL, type: 'POST',
+                data: { category_id: catId, brand_id: '' },
+                headers: { 'X-CSRF-TOKEN': CSRF },
+                success: function (models) {
+                    var html = '<option value="">' + modelLabel + '</option>';
+                    $.each(models, function (i, m) {
+                        html += '<option value="' + m.id + '">' + m.model_id + '</option>';
+                    });
+                    $('#sm_model_id').html(html);
+                }
+            });
+        });
+
+        /* ── Brand change → reload models ───────────────────── */
+        $(document).on('change', '#sm_brand_id', function () {
+            var brandId = $(this).val();
+            var catId   = $('#sm_category_id').val();
+
+            if (!brandId) {
+                /* no brand → trigger category reload to reset models */
+                $('#sm_category_id').trigger('change');
+                return;
+            }
+
+            $('#sm_model_spinner').show();
+
+            $.ajax({
+                url: MODELS_URL, type: 'POST',
+                data: { brand_id: brandId, category_id: catId },
+                headers: { 'X-CSRF-TOKEN': CSRF },
+                success: function (models) {
+                    var modelLabel = parseInt(catId) === SM_CAT_CL ? 'All Product Names' : 'All Models';
+                    var html = '<option value="">' + modelLabel + '</option>';
+                    $.each(models, function (i, m) {
+                        html += '<option value="' + m.id + '">' + m.model_id + '</option>';
+                    });
+                    $('#sm_model_id').html(html);
+                },
+                complete: function () { $('#sm_model_spinner').hide(); }
+            });
+        });
+
+        /* ── Reset ───────────────────────────────────────────── */
         $(document).on('click', '#sm_resetSearchBtn', function () {
             $('#sm_category_id').val('');
             $('#sm_brand_id').html(initialBrandsHtml);
             $('#sm_model_id').html(initialModelsHtml);
-            $('#sm_search_text, #sm_size, #sm_color').val('');
-            $('#sm_type').val('');
+
+            /* standard fields */
+            $('#sm_search_text, #sm_size, #sm_color, #sm_power, #sm_cl_power').val('');
+            $('#sm_type, #sm_glasses_type').val('');
+
+            /* CL fields */
+            $('#sm_brand_segment, #sm_lense_use, #sm_sign').val('');
+
+            /* restore default field group */
+            smApplyCategoryFields('');
+
             $('#sm_searchResultsContainer').html(
                 '<div class="alert alert-info text-center" ' +
                 'style="border-radius:10px;border:2px solid #aed6f1;background:#eaf4fb;margin:0;">' +
@@ -650,7 +721,7 @@
             );
         });
 
-        /* ── Execute Search ──────────────────────────────── */
+        /* ── Execute Search ──────────────────────────────────── */
         $(document).on('click', '#sm_executeSearchBtn', function () {
             var branch_id = $('#branch_id').val();
 
@@ -664,16 +735,38 @@
                 return;
             }
 
+            var catId = parseInt($('#sm_category_id').val()) || 0;
+
+            /* always-sent fields */
             var filters = {
                 branch_id:   branch_id,
                 category_id: $('#sm_category_id').val(),
                 brand_id:    $('#sm_brand_id').val(),
-                model_id:    $('#sm_model_id').val(),
-                search:      $('#sm_search_text').val(),
-                size:        $('#sm_size').val(),
-                color:       $('#sm_color').val(),
-                type:        $('#sm_type').val()
+                search:      $('#sm_search_text').val()
             };
+
+            /* model_id — only for cats that show the model column */
+            if ($.inArray(catId, SM_CAT_MODEL) !== -1) {
+                filters.model_id = $('#sm_model_id').val();
+            }
+
+            /* standard fields (Frames / Sunglasses / All) */
+            if (catId === SM_CAT_CL) {
+                /* Contact Lens specific */
+                filters.brand_segment = $('#sm_brand_segment').val();
+                filters.lense_use     = $('#sm_lense_use').val();
+                filters.sign          = $('#sm_sign').val();
+                filters.power         = $('#sm_cl_power').val();
+            } else if ($.inArray(catId, SM_CAT_GLASSES) !== -1) {
+                /* Reading Glasses */
+                filters.power = $('#sm_power').val();
+                filters.type  = $('#sm_glasses_type').val();
+            } else {
+                /* Frames / Sunglasses / All */
+                filters.size  = $('#sm_size').val();
+                filters.color = $('#sm_color').val();
+                filters.type  = $('#sm_type').val();
+            }
 
             /* loading state */
             $('#sm_executeSearchBtn').prop('disabled', true)
@@ -693,7 +786,7 @@
 
                 success: function (res) {
                     if (res.success) {
-                        renderResults(res.products);
+                        renderResults(res.products, catId);
                     } else {
                         $('#sm_searchResultsContainer').html(
                             '<div class="alert alert-warning">' +
@@ -721,13 +814,19 @@
             });
         });
 
-        /* ── Enter key triggers search ───────────────────── */
-        $(document).on('keypress', '#sm_search_text, #sm_size, #sm_color', function (e) {
-            if (e.which === 13) { $('#sm_executeSearchBtn').trigger('click'); }
-        });
+        /* ── Enter key triggers search ───────────────────────── */
+        $(document).on('keypress',
+            '#sm_search_text, #sm_size, #sm_color, #sm_power, #sm_cl_power',
+            function (e) {
+                if (e.which === 13) { $('#sm_executeSearchBtn').trigger('click'); }
+            }
+        );
 
-        /* ── Render results ──────────────────────────────── */
-        function renderResults(products) {
+        /* ── Render results ──────────────────────────────────── */
+        function renderResults(products, catId) {
+            catId = catId || 0;
+            var isCL = (catId === SM_CAT_CL);
+
             if (!products || products.length === 0) {
                 $('#sm_searchResultsContainer').html(
                     '<div class="alert alert-info text-center" style="border-radius:10px;">' +
@@ -738,24 +837,41 @@
                 return;
             }
 
+            /* ── Table header — differs for CL vs regular ── */
+            var thStyle = 'color:white;padding:10px 12px;white-space:nowrap;';
+            var headBg  = isCL
+                ? 'background:linear-gradient(135deg,#3498db,#2980b9);'
+                : 'background:linear-gradient(135deg,#f39c12,#e67e22);';
+
             var html =
                 '<div style="margin-bottom:10px;color:#555;font-size:12px;font-weight:700;">' +
                 '<i class="bi bi-check-circle-fill" style="color:#27ae60;"></i> ' +
                 products.length + ' product(s) found</div>' +
                 '<div class="table-responsive">' +
                 '<table class="table table-hover" style="font-size:12px;border-collapse:collapse;">' +
-                '<thead style="background:linear-gradient(135deg,#f39c12,#e67e22);">' +
+                '<thead style="' + headBg + '">' +
                 '<tr>' +
-                '<th style="color:white;padding:10px 12px;white-space:nowrap;">Product ID</th>' +
-                '<th style="color:white;padding:10px 12px;">Description</th>' +
-                '<th style="color:white;padding:10px 12px;">Category</th>' +
-                '<th style="color:white;padding:10px 12px;">Brand</th>' +
-                '<th style="color:white;padding:10px 12px;">Model</th>' +
-                '<th style="color:white;padding:10px 12px;white-space:nowrap;">Size</th>' +
-                '<th style="color:white;padding:10px 12px;">Color</th>' +
-                '<th style="color:white;padding:10px 12px;text-align:right;white-space:nowrap;">Price</th>' +
-                '<th style="color:white;padding:10px 12px;text-align:center;">Stock</th>' +
-                '<th style="color:white;padding:10px 12px;text-align:center;">Action</th>' +
+                '<th style="' + thStyle + '">Product ID</th>' +
+                '<th style="' + thStyle + '">Description</th>' +
+                '<th style="' + thStyle + '">Brand</th>';
+
+            if (isCL) {
+                html +=
+                    '<th style="' + thStyle + '">Segment</th>' +
+                    '<th style="' + thStyle + '">Type</th>' +
+                    '<th style="' + thStyle + '">Sign</th>' +
+                    '<th style="' + thStyle + '">Power</th>';
+            } else {
+                html +=
+                    '<th style="' + thStyle + '">Model</th>' +
+                    '<th style="' + thStyle + '">Size</th>' +
+                    '<th style="' + thStyle + '">Color</th>';
+            }
+
+            html +=
+                '<th style="' + thStyle + 'text-align:right;">Price</th>' +
+                '<th style="' + thStyle + 'text-align:center;">Stock</th>' +
+                '<th style="' + thStyle + 'text-align:center;">Action</th>' +
                 '</tr>' +
                 '</thead><tbody>';
 
@@ -764,17 +880,33 @@
                 var stkBg    = qty > 10 ? '#d5f5e3' : qty > 0 ? '#fdebd0' : '#fadbd8';
                 var stkColor = qty > 10 ? '#1e8449' : qty > 0 ? '#d35400' : '#c0392b';
                 var disabled = qty <= 0 ? 'disabled' : '';
+                var selColor = isCL ? '#3498db,#2980b9' : '#27ae60,#1e8449';
 
                 html +=
                     '<tr style="border-bottom:1px solid #f0f2f5;">' +
                     '<td style="padding:9px 12px;">' +
-                    '<strong style="color:#e67e22;">' + (p.product_id || '—') + '</strong></td>' +
-                    '<td style="padding:9px 12px;">'   + (p.description   || '—') + '</td>' +
-                    '<td style="padding:9px 12px;color:#888;">' + (p.category_name || p.category_id || '—') + '</td>' +
-                    '<td style="padding:9px 12px;color:#888;">' + (p.brand_name    || p.brand_id    || '—') + '</td>' +
-                    '<td style="padding:9px 12px;color:#888;">' + (p.model_name    || p.model_id    || '—') + '</td>' +
-                    '<td style="padding:9px 12px;">'  + (p.size  || '—') + '</td>' +
-                    '<td style="padding:9px 12px;">'  + (p.color || '—') + '</td>' +
+                    '<strong style="color:' + (isCL ? '#3498db' : '#e67e22') + ';">'
+                    + (p.product_id || '—') + '</strong></td>' +
+                    '<td style="padding:9px 12px;">' + (p.description || '—') + '</td>' +
+                    '<td style="padding:9px 12px;color:#888;">' + (p.brand_name || p.brand_id || '—') + '</td>';
+
+                if (isCL) {
+                    html +=
+                        '<td style="padding:9px 12px;">'
+                        + '<span style="background:#eaf4fb;color:#2980b9;border-radius:10px;' +
+                        'padding:2px 8px;font-size:11px;font-weight:600;">'
+                        + (p.brand_segment || '—') + '</span></td>' +
+                        '<td style="padding:9px 12px;color:#888;">' + (p.lense_use || '—') + '</td>' +
+                        '<td style="padding:9px 12px;font-weight:700;color:#e74c3c;">' + (p.sign || '—') + '</td>' +
+                        '<td style="padding:9px 12px;font-weight:700;">' + (p.power || '—') + '</td>';
+                } else {
+                    html +=
+                        '<td style="padding:9px 12px;color:#888;">' + (p.model_name || p.model_id || '—') + '</td>' +
+                        '<td style="padding:9px 12px;">' + (p.size  || '—') + '</td>' +
+                        '<td style="padding:9px 12px;">' + (p.color || '—') + '</td>';
+                }
+
+                html +=
                     '<td style="padding:9px 12px;text-align:right;font-weight:700;">' +
                     parseFloat(p.retail_price || 0).toFixed(2) + ' QAR</td>' +
                     '<td style="padding:9px 12px;text-align:center;">' +
@@ -784,7 +916,7 @@
                     '<td style="padding:9px 12px;text-align:center;">' +
                     '<button type="button" class="sm_select_product" ' +
                     'data-pid="' + p.product_id + '" ' + disabled + ' ' +
-                    'style="background:linear-gradient(135deg,#27ae60,#1e8449);color:white;' +
+                    'style="background:linear-gradient(135deg,' + selColor + ');color:white;' +
                     'border:none;border-radius:6px;padding:5px 14px;font-size:11px;' +
                     'font-weight:700;cursor:pointer;">' +
                     '<i class="bi bi-plus-circle"></i> Select</button></td>' +

@@ -38,7 +38,7 @@
 <section class="content-header">
     <h1>
         <i class="fa fa-flask" style="color:#e74c3c;"></i> Re-order Lenses
-        <small>Original PO: <strong>{{ $po->po_number }}</strong> — Invoice: {{ $po->invoice->invoice_code }}</small>
+        <small>Original PO: <strong>{{ $po->po_number }}</strong> — Invoice: {{ optional($po->invoice)->invoice_code ?? '—' }}</small>
     </h1>
     <ol class="breadcrumb">
         <li><a href="{{ route('dashboard.index') }}"><i class="fa fa-dashboard"></i> Home</a></li>
@@ -207,11 +207,11 @@
                     </div>
                     <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
                         <span style="color:#888;">Invoice:</span>
-                        <strong>{{ $po->invoice->invoice_code }}</strong>
+                        <strong>{{ optional($po->invoice)->invoice_code ?? '—' }}</strong>
                     </div>
                     <div style="display:flex;justify-content:space-between;">
                         <span style="color:#888;">Customer:</span>
-                        <strong>{{ $po->invoice->customer->english_name ?? '—' }}</strong>
+                        <strong>{{ optional(optional($po->invoice)->customer)->english_name ?? '—' }}</strong>
                     </div>
                 </div>
 

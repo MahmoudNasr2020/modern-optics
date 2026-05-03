@@ -363,4 +363,85 @@ class Product extends Model
         $stock->addQuantity($quantity, $cost);
         return $stock;
     }
+
+    // ============================================================
+    //  SAFE DELETION — 3-tier logic
+    // ============================================================
+
+    /**
+     * Smart deletion with full safety checks.
+     *
+     * Returns an array:
+     *   [
+     *     'action'   => 'blocked' | 'archived' | 'deleted',
+     *     'message'  => string (Arabic),
+     *     'branches' => Collection (only when blocked),
+     *   ]
+     *
+     * Tier 1 — BLOCKED  : any branch has quantity > 0 or reserved_quantity > 0
+     * Tier 2 — ARCHIVED : no stock, but linked to invoice history → set is_active = false
+     * Tier 3 — DELETED  : no stock, no invoices → hard delete + orphan cleanup
+     */
+    public function safeDelete(): array
+    {
+        // ── Tier 1: Block if any branch still holds stock ──────────
+        $blockedBranches = $this->branchStocks()
+            ->where(function ($q) {
+                $q->where('quantity', '>', 0)
+                  ->orWhere('reserved_quantity', '>', 0);
+            })
+            ->with('branch')
+            ->get();
+
+        if ($blockedBranches->isNotEmpty()) {
+            $list = $blockedBranches->map(function ($s) {
+                $parts = [];
+                if ($s->quantity > 0)          $parts[] = 'كمية: ' . $s->quantity;
+                if ($s->reserved_quantity > 0) $parts[] = 'محجوز: ' . $s->reserved_quantity;
+                $branchName = optional($s->branch)->name ?? 'فرع غير معروف';
+                return $branchName . ' (' . implode('، ', $parts) . ')';
+            })->implode(' — ');
+
+            return [
+                'action'   => 'blocked',
+                'message'  => 'لا يمكن الحذف — يوجد مخزون في: ' . $list,
+                'branches' => $blockedBranches,
+            ];
+        }
+
+        // ── Tier 2: Archive if the product appears on any invoice ──
+        $invoiceCount = InvoiceItems::where('product_id', $this->product_id)->count();
+
+        if ($invoiceCount > 0) {
+            // Deactivate — preserves all history
+            $this->update(['is_active' => false]);
+            // Remove any orphaned zero-qty branch-stock rows
+            $this->branchStocks()
+                 ->where('quantity', '<=', 0)
+                 ->where('reserved_quantity', '<=', 0)
+                 ->delete();
+
+            return [
+                'action'  => 'archived',
+                'message' => 'تم أرشفة المنتج وإيقافه — لا يمكن حذفه نهائياً لارتباطه بـ ' . $invoiceCount . ' سجل فاتورة.',
+            ];
+        }
+
+        // ── Tier 3: Safe hard delete ────────────────────────────────
+        $this->branchStocks()->delete();   // clean up empty rows
+        $this->delete();
+
+        return [
+            'action'  => 'deleted',
+            'message' => 'تم حذف المنتج نهائياً.',
+        ];
+    }
+
+    /**
+     * Restore an archived product (re-activate it).
+     */
+    public function restore(): void
+    {
+        $this->update(['is_active' => true]);
+    }
 }

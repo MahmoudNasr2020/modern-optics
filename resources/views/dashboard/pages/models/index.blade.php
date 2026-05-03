@@ -428,11 +428,11 @@
                                 </td>
 
                                 <td>
-                                    {{ $model->category->category_name }}
+                                    {{ optional($model->category)->category_name ?? '—' }}
                                 </td>
 
                                 <td>
-                                   {{ $model->brand->brand_name }}
+                                   {{ optional($model->brand)->brand_name ?? '—' }}
                                 </td>
 
                                 <td>

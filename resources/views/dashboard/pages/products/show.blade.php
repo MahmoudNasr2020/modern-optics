@@ -390,7 +390,7 @@
                                 <td>
                                         <span class="branch-badge">
                                             <i class="bi bi-building"></i>
-                                            {{ $stock->branch->name ?? $stock->branch->branch_name }}
+                                            {{ optional($stock->branch)->name ?? optional($stock->branch)->branch_name ?? '—' }}
                                         </span>
                                 </td>
                                 <td class="text-center">

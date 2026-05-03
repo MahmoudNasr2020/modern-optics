@@ -296,10 +296,10 @@
 
         <!-- User Pill -->
         <div class="sidebar-user-pill">
-            <div class="sidebar-user-avatar">{{ strtoupper(substr(auth()->user()->first_name,0,1)) }}</div>
+            <div class="sidebar-user-avatar">{{ strtoupper(substr(optional(auth()->user())->first_name ?? 'U', 0, 1)) }}</div>
             <div class="sidebar-user-info">
-                <span class="sidebar-user-name">{{ auth()->user()->first_name }} {{ auth()->user()->last_name }}</span>
-                <span class="sidebar-user-role">{{ optional(auth()->user()->roles->first())->name ?? 'User' }}</span>
+                <span class="sidebar-user-name">{{ optional(auth()->user())->first_name ?? '' }} {{ optional(auth()->user())->last_name ?? '' }}</span>
+                <span class="sidebar-user-role">{{ optional(auth()->user() ? auth()->user()->roles->first() : null)->name ?? 'User' }}</span>
             </div>
         </div>
 
@@ -376,9 +376,31 @@
                                 </a>
                             </li>
                         @endcan
+
                     </ul>
                 </li>
             @endif
+
+            {{-- ── Contact Lenses standalone treeview ── --}}
+            <li class="treeview {{ Request::routeIs('dashboard.contact-lenses.*') ? 'active' : '' }}">
+                <a href="javascript:void(0)">
+                    <i class="fa fa-eye" style="color:#3498db;"></i>
+                    <span style="color:#3498db;font-weight:600;">Contact Lenses</span>
+                    <i class="fa fa-angle-left pull-right"></i>
+                </a>
+                <ul class="treeview-menu">
+                    <li class="{{ Request::routeIs('dashboard.contact-lenses.index') ? 'active' : '' }}">
+                        <a href="{{ route('dashboard.contact-lenses.index') }}">
+                            <i class="fa fa-circle-o" style="color:#3498db;"></i> All Contact Lenses
+                        </a>
+                    </li>
+                    <li class="{{ Request::routeIs('dashboard.contact-lenses.create') ? 'active' : '' }}">
+                        <a href="{{ route('dashboard.contact-lenses.create') }}">
+                            <i class="fa fa-plus-circle" style="color:#3498db;"></i> Add Contact Lens
+                        </a>
+                    </li>
+                </ul>
+            </li>
 
             @if(auth()->user()->hasAnyPermission(['view-lenses', 'view-stock', 'view-brands', 'view-lens-purchase-orders', 'view-damaged-lenses']))
                 @php $lensRouteActive = in_array(Request::route()->getName(), ['dashboard.get-glassess-lenses','dashboard.lens-brands.index']) || Request::routeIs('dashboard.lens-purchase-orders.*'); @endphp

@@ -895,8 +895,8 @@ class ReportsController extends Controller
                 $row = [
                     'invoice_code'     => $invoice->invoice_code ?? '-',
                     'date'             => $first->transaction_date,
-                    'customer'         => $invoice->customer->english_name ?? '-',
-                    'branch'           => $invoice->branch->name ?? '-',
+                    'customer'         => optional($invoice->customer)->english_name ?? '-',
+                    'branch'           => optional($invoice->branch)->name ?? '-',
                     'transaction_type' => $first->transaction_type,
                     'payments'         => [],
                     'total'            => 0,
@@ -1114,29 +1114,31 @@ class ReportsController extends Controller
     public function printReturnInvoiceEn(Request $request, $id)
     {
         $invoice = Invoice::where('invoice_code', $id)->first();
+        if (!$invoice) { abort(404, 'Invoice not found.'); }
 
         $invoiceItems = Invoice::where('invoice_code', $id)
             ->leftJoin('invoice_items', 'invoice_items.invoice_id', 'invoices.id')
             ->leftJoin('products', 'products.product_id', 'invoice_items.product_id')
             ->select('invoice_items.*', 'products.description', 'products.discount_type', 'products.discount_value')->get();
 
-        $payments = Payments::where('invoice_id',$invoice->id)->first();
+        $payments = Payments::where('invoice_id', $invoice->id)->first();
 
-        return view('dashboard.pages.reports.print_return_invoice_en')->with(compact('invoice', 'invoiceItems', 'id','payments'));
+        return view('dashboard.pages.reports.print_return_invoice_en')->with(compact('invoice', 'invoiceItems', 'id', 'payments'));
     }
 
     public function printReturnInvoiceAr(Request $request, $id)
     {
         $invoice = Invoice::where('invoice_code', $id)->first();
+        if (!$invoice) { abort(404, 'Invoice not found.'); }
 
         $invoiceItems = Invoice::where('invoice_code', $id)
             ->leftJoin('invoice_items', 'invoice_items.invoice_id', 'invoices.id')
             ->leftJoin('products', 'products.product_id', 'invoice_items.product_id')
             ->select('invoice_items.*', 'products.description', 'products.discount_type', 'products.discount_value')->get();
 
-        $payments = Payments::where('invoice_id',$invoice->id)->first();
+        $payments = Payments::where('invoice_id', $invoice->id)->first();
 
-        return view('dashboard.pages.reports.print_return_invoice_ar')->with(compact('invoice', 'invoiceItems', 'id','payments'));
+        return view('dashboard.pages.reports.print_return_invoice_ar')->with(compact('invoice', 'invoiceItems', 'id', 'payments'));
     }
 
 
@@ -1478,7 +1480,7 @@ class ReportsController extends Controller
 
         // إجمالي حسب الفئة
         $byCategory = $expenses->groupBy(function ($e) {
-            return $e->category->name ?? 'Uncategorized';
+            return optional($e->category)->name ?? 'Uncategorized';
         })->map(function ($items) {
             return [
                 'count' => $items->count(),
@@ -1498,7 +1500,7 @@ class ReportsController extends Controller
 
         // إجمالي حسب الفرع (لو super admin)
         $byBranch = $expenses->groupBy(function ($e) {
-            return $e->branch->name ?? 'Unknown';
+            return optional($e->branch)->name ?? 'Unknown';
         })->map(function ($items) {
             return [
                 'count' => $items->count(),
@@ -1576,7 +1578,7 @@ class ReportsController extends Controller
 
         // إجمالي حسب الفئة
         $byCategory = $expenses->groupBy(function ($e) {
-            return $e->category->name ?? 'Uncategorized';
+            return optional($e->category)->name ?? 'Uncategorized';
         })->map(function ($items) {
             return [
                 'count' => $items->count(),
@@ -1596,7 +1598,7 @@ class ReportsController extends Controller
 
         // إجمالي حسب الفرع (لو super admin)
         $byBranch = $expenses->groupBy(function ($e) {
-            return $e->branch->name ?? 'Unknown';
+            return optional($e->branch)->name ?? 'Unknown';
         })->map(function ($items) {
             return [
                 'count' => $items->count(),

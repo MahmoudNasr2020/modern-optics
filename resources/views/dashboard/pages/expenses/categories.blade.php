@@ -299,7 +299,7 @@
                                         @if($category->branch_id)
                                             <span class="branch-badge">
                                                 <i class="fa fa-building"></i>
-                                                {{ $category->branch->name }}
+                                                {{ optional($category->branch)->name ?? '—' }}
                                             </span>
                                         @else
                                             <span class="global-badge">

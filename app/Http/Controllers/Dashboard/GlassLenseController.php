@@ -485,7 +485,7 @@ class GlassLenseController extends Controller
         if ($branchesWithStock->count() > 0) {
 
             $branchNames = $branchesWithStock->map(function ($stock) {
-                return $stock->branch->name .
+                return (optional($stock->branch)->name ?? 'Branch#' . $stock->branch_id) .
                     " (Qty: {$stock->quantity}, Reserved: {$stock->reserved_quantity})";
             })->implode(' , ');
 

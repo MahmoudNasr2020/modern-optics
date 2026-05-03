@@ -1,4 +1,4 @@
-@extends('dashboard.layouts.master')
+@extends('layouts.error')
 
 @section('title', 'Access Denied')
 
@@ -378,7 +378,7 @@
                     </div>
                     <div class="error-details-text">
                         <div class="error-details-label">Current User</div>
-                        <div class="error-details-value">{{ auth()->user()->full_name ?? 'Guest' }}</div>
+                        <div class="error-details-value">{{ optional(auth()->user())->full_name ?? optional(auth()->user())->name ?? 'Guest' }}</div>
                     </div>
                 </div>
 

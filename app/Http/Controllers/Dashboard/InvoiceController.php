@@ -1211,7 +1211,8 @@ class InvoiceController extends Controller
 
         // Group by cashier
         $cashierSummary = $transactions->groupBy('cashier_id')->map(function($cashierTransactions) {
-            $cashier = $cashierTransactions->first()->cashier;
+            $firstTxn = $cashierTransactions->first();
+            $cashier  = $firstTxn ? $firstTxn->cashier : null;
 
             return [
                 'cashier' => $cashier,

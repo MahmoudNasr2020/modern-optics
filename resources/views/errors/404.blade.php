@@ -1,4 +1,4 @@
-@extends('dashboard.layouts.master')
+@extends('layouts.error')
 
 @section('title', 'Page Not Found')
 

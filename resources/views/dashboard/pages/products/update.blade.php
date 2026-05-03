@@ -317,6 +317,7 @@
                                     <select name="category" id="category" class="form-control" required>
                                         <option value="">Select Category</option>
                                         @foreach ($categories as $category)
+                                            @if($category->id == 4) @continue @endif
                                             <option value="{{ $category->id }}" {{ ($category->id == $product->category_id) ? 'selected' : '' }}>
                                                 {{ $category->category_name }}
                                             </option>
@@ -351,14 +352,13 @@
                             </div>
                         </div>
 
+                        {{-- ══ Frames/Sunglasses: Model + Color + Size ══ --}}
+                        <div id="fieldGroup-model-color-size" style="display:none;">
                         <div class="row">
                             <div class="col-md-4">
                                 <div class="form-group">
-                                    <label for="model">
-                                        Model
-                                        <span class="required">*</span>
-                                    </label>
-                                    <select name="model" id="model" class="form-control" required>
+                                    <label for="model">Model</label>
+                                    <select name="model" id="model" class="form-control">
                                         <option value="">Select Model</option>
                                         @foreach ($models as $model)
                                             <option value="{{ $model->id }}" {{ ($model->id == $product->model_id) ? 'selected' : '' }}>
@@ -366,47 +366,69 @@
                                             </option>
                                         @endforeach
                                     </select>
-                                    <p class="help-text">
-                                        <i class="bi bi-info-circle"></i>
-                                        Product model
-                                    </p>
                                 </div>
                             </div>
-
                             <div class="col-md-4">
                                 <div class="form-group">
                                     <label for="color">Color</label>
-                                    <input type="text"
-                                           class="form-control"
-                                           name="color"
-                                           id="color"
-                                           autocomplete="off"
+                                    <input type="text" class="form-control" name="color" id="color"
                                            value="{{ old('color', $product->color) }}"
                                            placeholder="e.g., Black, Blue, Red">
-                                    <p class="help-text">
-                                        <i class="bi bi-info-circle"></i>
-                                        Product color or shade
-                                    </p>
                                 </div>
                             </div>
-
                             <div class="col-md-4">
                                 <div class="form-group">
                                     <label for="size">Size</label>
-                                    <input type="text"
-                                           class="form-control"
-                                           name="size"
-                                           id="size"
-                                           autocomplete="off"
+                                    <input type="text" class="form-control" name="size" id="size"
                                            value="{{ old('size', $product->size) }}"
                                            placeholder="e.g., Small, Medium, Large">
-                                    <p class="help-text">
-                                        <i class="bi bi-info-circle"></i>
-                                        Product size or dimensions
-                                    </p>
                                 </div>
                             </div>
                         </div>
+                        </div>{{-- /fieldGroup-model-color-size --}}
+
+                        {{-- ══ Reading Glasses: Power + Type ══ --}}
+                        <div id="fieldGroup-power-type" style="display:none;">
+                        <div class="row" style="margin-top:8px;">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label><i class="bi bi-eyeglasses"></i> Power</label>
+                                    <input type="number" step="0.25" min="0.25" max="12" class="form-control"
+                                           name="power" id="power"
+                                           value="{{ old('power', $product->power) }}"
+                                           placeholder="e.g. 1.50">
+                                    <p class="help-text">Reading power — e.g. 1.00, 1.50, 2.00 …</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label><i class="bi bi-layout-three-columns"></i> Frame Type</label>
+                                    <select name="type" id="type" class="form-control">
+                                        <option value="">Select Type</option>
+                                        @foreach(['folding metal','folding plastic','metal frame','plastic frame'] as $t)
+                                            <option value="{{ $t }}" {{ old('type', $product->type) == $t ? 'selected' : '' }}>
+                                                {{ strtoupper($t) }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        </div>{{-- /fieldGroup-power-type --}}
+
+                        {{-- ══ Contact Lens Notice ══ --}}
+                        <div id="contactLens-notice" style="display:none;">
+                            <div style="background:#fff3cd;border:2px solid #ffc107;border-radius:10px;padding:18px 20px;margin-top:12px;">
+                                <div style="display:flex;align-items:center;gap:14px;">
+                                    <i class="bi bi-info-circle-fill" style="font-size:26px;color:#e67e22;flex-shrink:0;"></i>
+                                    <div>
+                                        <strong style="color:#7d4e00;font-size:15px;">Contact Lens products have a dedicated screen</strong><br>
+                                        <span style="font-size:13px;color:#7d4e00;">Please use the <a href="{{ route('dashboard.contact-lenses.index') }}" style="color:#e67e22;font-weight:700;text-decoration:underline;">Contact Lens screen</a> to manage contact lenses.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>{{-- /contactLens-notice --}}
+
                     </div>
 
                     <!-- Branch & Description -->
@@ -653,11 +675,31 @@
 
     <script src="{{asset('assets/js/jquery-2.0.2.min.js')}}" type="text/javascript"></script>
     <script>
+        // ── Category → Field Visibility (same logic as create page) ──
+        var CAT_MODEL_COLOR_SIZE_UP = [1, 2];
+        var CAT_POWER_TYPE_UP       = [6];
+        var CAT_CONTACT_LENS_UP     = [4];
+
+        function applyCategoryFieldsUpdate(catId) {
+            catId = parseInt(catId) || 0;
+            var showMCS = CAT_MODEL_COLOR_SIZE_UP.indexOf(catId) >= 0;
+            var showPT  = CAT_POWER_TYPE_UP.indexOf(catId) >= 0;
+            var showCL  = CAT_CONTACT_LENS_UP.indexOf(catId) >= 0;
+            $('#fieldGroup-model-color-size')[showMCS ? 'show' : 'hide']();
+            $('#fieldGroup-power-type')[showPT  ? 'show' : 'hide']();
+            $('#contactLens-notice')[showCL  ? 'show' : 'hide']();
+            $('.btn-submit').prop('disabled', showCL);
+            $('#model').prop('required', showMCS);
+        }
+
         $(document).ready(function() {
+            // Apply on page load based on existing product category
+            applyCategoryFieldsUpdate({{ $product->category_id ?? 0 }});
+
             // Set the brands after choosing the category ID
             let category_ID = document.querySelector('#category');
             $(category_ID).on('change', function(e) {
-                console.log(category_ID.value);
+                applyCategoryFieldsUpdate($(this).val());
                 if($(this).val() != '') {
                     $.ajax({
                         headers: {
@@ -683,8 +725,7 @@
                     brandSelect.disabled = true;
 
                     let modelSelect = document.querySelector('#model');
-                    modelSelect.innerHTML = '<option value="">Select Brand First</option>';
-                    modelSelect.disabled = true;
+                    if (modelSelect) { modelSelect.innerHTML = '<option value="">Select Brand First</option>'; modelSelect.disabled = true; }
                 }
             });
 

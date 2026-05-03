@@ -160,7 +160,7 @@
                 </td>
                 <td style="font-weight:600;color:#555;">{{ $entry->sourcePo->po_number ?? '—' }}</td>
                 <td style="font-weight:600;color:#1a237e;">
-                    {{ $entry->sourcePo->invoice->invoice_code ?? '—' }}
+                    {{ optional(optional($entry->sourcePo)->invoice)->invoice_code ?? '—' }}
                 </td>
                 <td>{{ $entry->user->full_name ?? '—' }}</td>
                 <td style="font-size:12px;color:#666;">{{ $entry->notes ?? '—' }}</td>

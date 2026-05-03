@@ -305,9 +305,23 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::get('show-product-details' ,'ProductController@getProductDetails')->name('get-product-details');
     Route::get('show-product/{id}' ,'ProductController@showProduct')->name('show-product');
     Route::delete('delete-product/{id}' ,'ProductController@deleteProduct')->name('delete-product');
+    Route::post('restore-product/{id}', 'ProductController@restoreProduct')->name('restore-product');
     Route::post('import-products/',   'ProductController@importProducts')       ->name('import-products');
     Route::get('product-template/',      'ProductController@downloadProductTemplate')->name('product-import-template');
     Route::get('product-test-template/', 'ProductController@downloadTestTemplate')->name('product-test-template');
+
+    // ── Contact Lens Routes ──────────────────────────────────────
+    Route::group(['prefix' => 'contact-lenses', 'as' => 'contact-lenses.'], function () {
+        Route::get('/',                 'ContactLensController@index')               ->name('index');
+        Route::get('/create',           'ContactLensController@create')              ->name('create');
+        Route::get('/generate-barcode', 'ContactLensController@generateBarcodeAjax')->name('generate-barcode');
+        Route::post('/',                'ContactLensController@store')               ->name('store');
+        Route::get('/{id}/edit',        'ContactLensController@edit')                ->name('edit');
+        Route::put('/{id}',             'ContactLensController@update')              ->name('update');
+        Route::delete('/{id}',          'ContactLensController@destroy')             ->name('destroy');
+        Route::post('/{id}/restore',    'ContactLensController@restore')             ->name('restore');
+        Route::post('/import',          'ContactLensController@import')              ->name('import');
+    });
 
     // Brands Routes
     Route::get('all-brands/' ,'BrandController@index')->name('get-all-brands');

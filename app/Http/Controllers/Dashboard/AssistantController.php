@@ -734,7 +734,7 @@ class AssistantController extends Controller
         if ($expenses->isNotEmpty()) {
             $text .= "\n**أعلى المصروفات:**\n";
             foreach ($expenses->sortByDesc('amount')->take(5) as $e) {
-                $cat  = $e->category->name ?? 'غير محدد';
+                $cat  = optional($e->category)->name ?? 'غير محدد';
                 $text .= "  • {$cat}: **" . number_format($e->amount, 2) . "**\n";
             }
         }
@@ -804,7 +804,7 @@ class AssistantController extends Controller
         }
 
         $chartData = $byCat->map(fn($r) => [
-            'label' => $r->category->name ?? 'غير محدد',
+            'label' => optional($r->category)->name ?? 'غير محدد',
             'value' => (float)$r->tot,
         ])->values()->toArray();
 
@@ -833,7 +833,7 @@ class AssistantController extends Controller
         }
 
         $chartData = $data->map(fn($r) => [
-            'label' => $r->category->name ?? 'غير محدد',
+            'label' => optional($r->category)->name ?? 'غير محدد',
             'value' => (float)$r->tot,
         ])->values()->toArray();
 

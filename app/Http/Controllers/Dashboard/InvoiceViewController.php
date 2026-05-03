@@ -249,11 +249,22 @@ class InvoiceViewController extends Controller
                 // Determine type: 'product' or 'lens'
                 $type = $item->type === 'product' ? 'product' : 'lens';
 
+                // Resolve item ID safely (product/lens may have been deleted)
+                $itemId = $type === 'product'
+                    ? (optional($item->product)->id ?? null)
+                    : (optional($item->lens)->id    ?? null);
+
+                if (!$itemId) {
+                    $item->status = 'canceled';
+                    $item->save();
+                    continue;
+                }
+
                 // Return stock using StockService
                 StockService::returnStock(
                     $invoice->branch_id,           // Branch ID
                     $type,                         // Type: 'product' or 'lens'
-                    $type == 'product' ? $item->product->id : $item->lens->id,            // Item ID
+                    $itemId,                       // Item ID
                     $item->quantity,              // Quantity to return
                     auth()->user()->id,           // User ID
                     null,                         // Cost (null for returns)

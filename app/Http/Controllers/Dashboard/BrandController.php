@@ -37,10 +37,11 @@ class BrandController extends Controller
 
     public function index(Request $request) {
         $categories = Category::all();
-        $brands = Brand::when($request->search, function($query) use ($request) {
-            return $query->where('category_id', 'like', '%' . $request->search . '%')
-            ->orWhere('brand_name', 'like', '%' . $request->search . '%');
-        })->latest()->paginate(10);
+        $brands = Brand::with('category')
+            ->when($request->search, function($query) use ($request) {
+                return $query->where('category_id', 'like', '%' . $request->search . '%')
+                    ->orWhere('brand_name', 'like', '%' . $request->search . '%');
+            })->latest()->paginate(10);
         return view('dashboard.pages.brands.index', compact(['brands', 'categories']));
     }
 
@@ -132,7 +133,7 @@ class BrandController extends Controller
                         })
                         ->get()
                         ->map(function($stock) {
-                            return $stock->branch->name .
+                            return (optional($stock->branch)->name ?? 'Branch#'.$stock->branch_id) .
                                 " (Qty: {$stock->quantity}, Reserved: {$stock->reserved_quantity})";
                         })->implode(' , ');
 

@@ -25,8 +25,8 @@
     <div style="background:linear-gradient(135deg,#27ae60,#2ecc71);color:#fff;border-radius:10px;padding:20px;margin-bottom:20px;">
         <div class="row">
             <div class="col-md-3"><div style="opacity:.8;font-size:12px;">PO Number</div><div style="font-size:18px;font-weight:700;">{{ $po->po_number }}</div></div>
-            <div class="col-md-3"><div style="opacity:.8;font-size:12px;">Invoice</div><div style="font-size:18px;font-weight:700;">{{ $po->invoice->invoice_code }}</div></div>
-            <div class="col-md-3"><div style="opacity:.8;font-size:12px;">Customer</div><div style="font-size:16px;font-weight:600;">{{ $po->invoice->customer->english_name ?? '-' }}</div></div>
+            <div class="col-md-3"><div style="opacity:.8;font-size:12px;">Invoice</div><div style="font-size:18px;font-weight:700;">{{ optional($po->invoice)->invoice_code ?? '—' }}</div></div>
+            <div class="col-md-3"><div style="opacity:.8;font-size:12px;">Customer</div><div style="font-size:16px;font-weight:600;">{{ optional(optional($po->invoice)->customer)->english_name ?? '-' }}</div></div>
             <div class="col-md-3"><div style="opacity:.8;font-size:12px;">Lab</div><div style="font-size:16px;font-weight:600;">{{ $po->lab_name }}</div></div>
         </div>
     </div>

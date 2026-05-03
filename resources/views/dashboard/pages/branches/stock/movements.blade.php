@@ -407,7 +407,7 @@
                             <div class="smh-detail-lbl">By</div>
                             <div class="smh-detail-val">
                                 <i class="bi bi-person-circle"></i>
-                                {{ $movement->user->name ?? ($movement->user->first_name ?? 'System') }}
+                                {{ optional($movement->user)->name ?? optional($movement->user)->first_name ?? 'System' }}
                             </div>
                         </div>
                     </div>

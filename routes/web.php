@@ -27,3 +27,8 @@ Route::get('/dashboard/login', function () {
 Auth::routes(['register' => false]);
 
 Route::get('/home', 'HomeController@index')->name('home');
+
+// دليل المستخدم — صفحة مستقلة بدون أي ربط بالداشبورد
+Route::get('/manual', function () {
+    return view('manual');
+})->name('manual');

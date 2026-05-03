@@ -63,6 +63,15 @@
                         <div class="stat-icon total"><i class="bi bi-boxes"></i></div>
                         <div class="stat-content"><h4>{{ $totalItems }}</h4><p>Total Products</p></div>
                     </div>
+                    @if($archivedCount > 0)
+                    <div class="stat-card" style="border-right:4px solid #dc2626;">
+                        <div class="stat-icon" style="background:#fee2e2;color:#dc2626;"><i class="bi bi-archive-fill"></i></div>
+                        <div class="stat-content">
+                            <h4 style="color:#dc2626;">{{ $archivedCount }}</h4>
+                            <p>مؤرشف</p>
+                        </div>
+                    </div>
+                    @endif
                 </div>
 
                 <div class="filter-box">
@@ -76,6 +85,14 @@
                                 @can('create-products')
                                 <a href="{{ route('dashboard.get-add-product') }}" class="btn btn-primary"><i class="bi bi-plus-circle-fill"></i> Add Product</a>
                                 @endcan
+                                @if($archivedCount > 0)
+                                <a href="{{ route('dashboard.get-all-products', array_merge(request()->query(), ['show_archived' => $showArchived ? 0 : 1])) }}"
+                                   class="btn btn-{{ $showArchived ? 'warning' : 'default' }}"
+                                   style="border:2px solid {{ $showArchived ? '#d97706' : '#dc2626' }};color:{{ $showArchived ? '#d97706' : '#dc2626' }};">
+                                    <i class="bi bi-archive{{ $showArchived ? '-fill' : '' }}"></i>
+                                    {{ $showArchived ? 'إخفاء المؤرشف' : 'عرض المؤرشف ('.$archivedCount.')' }}
+                                </a>
+                                @endif
                             </div>
                         </div>
                     </form>
@@ -111,9 +128,14 @@
                         </thead>
                         <tbody>
                         @forelse($products as $index=>$product)
-                            <tr>
+                            <tr style="{{ !$product->is_active ? 'opacity:.55;background:#fafafa;' : '' }}">
                                 <td class="text-center"><strong style="color:#00a86b;font-size:16px;">{{ $products->firstItem()+$index }}</strong></td>
-                                <td><span class="product-id-badge">{{ $product->product_id }}</span></td>
+                                <td>
+                                    <span class="product-id-badge">{{ $product->product_id }}</span>
+                                    @if(!$product->is_active)
+                                        <br><span style="display:inline-block;margin-top:3px;background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:800;">🗃️ مؤرشف</span>
+                                    @endif
+                                </td>
                                 <td><strong style="color:#333;">{{ $product->description }}</strong></td>
                                 <td>{{ $product->category->category_name ?? 'N/A' }}</td>
                                 <td>{{ $product->brand->brand_name ?? 'N/A' }}</td>
@@ -177,7 +199,22 @@
                                         <a href="{{ route('dashboard.get-update-product',$product->id) }}" class="btn btn-edit btn-xs"><i class="bi bi-pencil-square"></i></a>
                                         @endcan
                                         @can('delete-products')
-                                        <button type="button" class="btn btn-delete btn-xs btn-delete-product" data-id="{{ $product->id }}" data-name="{{ $product->product_id }}"><i class="bi bi-trash-fill"></i></button>
+                                        @if($product->is_active)
+                                        <button type="button" class="btn btn-delete btn-xs btn-delete-product"
+                                                data-id="{{ $product->id }}" data-name="{{ $product->product_id }}">
+                                            <i class="bi bi-trash-fill"></i>
+                                        </button>
+                                        @else
+                                        {{-- Archived: show restore button --}}
+                                        <form method="POST" action="{{ route('dashboard.restore-product', $product->id) }}" style="display:inline;">
+                                            @csrf
+                                            <button type="submit" class="btn btn-xs"
+                                                    style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;"
+                                                    title="استعادة المنتج وتفعيله">
+                                                <i class="bi bi-arrow-counterclockwise"></i> استعادة
+                                            </button>
+                                        </form>
+                                        @endif
                                         @endcan
                                     </div>
                                 </td>
@@ -211,19 +248,27 @@
             <div class="modal-content" style="border-radius:12px;overflow:hidden;">
                 <div class="modal-header" style="background:linear-gradient(135deg,#e74c3c 0%,#c0392b 100%);color:#fff;border:none;">
                     <button type="button" class="close" data-dismiss="modal" style="color:#fff;opacity:1;">&times;</button>
-                    <h4 class="modal-title"><i class="bi bi-exclamation-triangle-fill"></i> Confirm Delete</h4>
+                    <h4 class="modal-title"><i class="bi bi-exclamation-triangle-fill"></i> حذف المنتج</h4>
                 </div>
                 <form id="deleteForm" method="POST">
                     @csrf
                     @method('DELETE')
-                    <div class="modal-body" style="padding:25px;">
-                        <div class="alert alert-warning" style="border-left:5px solid #f39c12;">
-                            Are you sure you want to delete product <strong id="productName"></strong>?
+                    <div class="modal-body" style="padding:25px;direction:rtl;text-align:right;">
+                        <p style="font-size:14px;font-weight:600;margin-bottom:14px;">
+                            هل تريد حذف المنتج: <strong id="productName" style="color:#e74c3c;"></strong>؟
+                        </p>
+                        <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;font-size:13px;color:#78350f;">
+                            <strong>⚙️ كيف يعمل الحذف الذكي:</strong>
+                            <ul style="margin:8px 0 0 16px;padding:0;">
+                                <li>إذا كان للمنتج <strong>مخزون في أي فرع</strong> — سيُرفض الحذف</li>
+                                <li>إذا كان مرتبطاً بـ <strong>فواتير سابقة</strong> — سيتم أرشفته وإيقافه فقط</li>
+                                <li>إذا كان نظيفاً تماماً — سيُحذف نهائياً من قاعدة البيانات</li>
+                            </ul>
                         </div>
                     </div>
                     <div class="modal-footer" style="border-top:2px solid #f0f2f5;">
-                        <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-danger">Delete Product</button>
+                        <button type="button" class="btn btn-default" data-dismiss="modal">إلغاء</button>
+                        <button type="submit" class="btn btn-danger">تأكيد الحذف</button>
                     </div>
                 </form>
             </div>
