@@ -514,6 +514,18 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
 
    // });
 
+    // ─── Chat Routes ──────────────────────────────────────────────────────────
+    Route::prefix('chat')->middleware('auth')->group(function () {
+        Route::get('/',                      'ChatController@index')->name('chat.index');
+        Route::get('/users',                 'ChatController@getUsers')->name('chat.users');
+        Route::get('/messages/{userId}',     'ChatController@getMessages')->name('chat.messages');
+        Route::post('/send',                 'ChatController@send')->name('chat.send');
+        Route::get('/unread-count',          'ChatController@unreadCount')->name('chat.unread-count');
+        Route::post('/mark-read/{userId}',   'ChatController@markRead')->name('chat.mark-read');
+        Route::get('/ping',                  'ChatController@ping')->name('chat.ping');
+        Route::get('/read-status/{userId}',  'ChatController@readStatus')->name('chat.read-status');
+    });
+
     // Notifications Routes
     Route::prefix('notifications')->middleware('auth')->group(function () {
         Route::get('/', 'NotificationController@index')->name('notifications.index');

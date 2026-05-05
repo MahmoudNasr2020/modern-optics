@@ -280,6 +280,7 @@
         .sidebar-menu > li > a > .bi-robot            { color: #a78bfa !important; }
         .sidebar-menu > li > a > .bi-currency-dollar  { color: #fbbf24 !important; }
         .sidebar-menu > li > a > .bi-shield-check     { color: #fbbf24 !important; }
+        .sidebar-menu > li > a > .bi-chat-dots-fill   { color: #34d399 !important; }
     </style>
 
     <section class="sidebar">
@@ -976,6 +977,23 @@
                     </li>
                 @endcan
             @endif
+
+            {{-- ── Chat ── --}}
+            <div class="sidebar-divider"></div>
+            <li class="{{ Request::routeIs('dashboard.chat.*') ? 'active' : '' }}">
+                <a href="{{ route('dashboard.chat.index') }}">
+                    <i class="bi bi-chat-dots-fill" style="color:#34d399 !important;"></i>
+                    <span>الرسائل الداخلية</span>
+                    @php
+                        $sidebarUnreadChat = \App\Message::where('receiver_id', auth()->id())->where('is_read', false)->count();
+                    @endphp
+                    @if($sidebarUnreadChat > 0)
+                        <span class="label label-warning pull-right" style="background:#ef4444 !important;color:#fff !important;">
+                            {{ $sidebarUnreadChat > 99 ? '99+' : $sidebarUnreadChat }}
+                        </span>
+                    @endif
+                </a>
+            </li>
 
             {{-- ── AI Assistant ── --}}
             @can('view-ai-assistant')

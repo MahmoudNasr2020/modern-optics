@@ -61,7 +61,22 @@ class User extends Authenticatable implements CanResetPassword
      */
     public function getImagePathAttribute()
     {
-        return url('storage/uploads/images/users/' . $this->image);
+        $noImage = ['default.jpg', 'default.png', '', null];
+
+        // Has a real uploaded image → check the file actually exists on disk
+        if ($this->image && !in_array($this->image, $noImage)) {
+            $disk = storage_path('app/public/uploads/images/users/' . $this->image);
+            if (file_exists($disk)) {
+                return url('storage/uploads/images/users/' . $this->image);
+            }
+        }
+
+        // Fallback: generate an initials avatar
+        $initials = urlencode(
+            strtoupper(substr($this->first_name ?? 'U', 0, 1)) .
+            strtoupper(substr($this->last_name  ?? '', 0, 1))
+        );
+        return url('avatar/' . $initials);
     }
 
     public function getFullNameAttribute()
@@ -108,23 +123,19 @@ class User extends Authenticatable implements CanResetPassword
      */
     public function getAccessibleBranches()
     {
-        // Super Admin sees all branches — cached 10 min
-        if ($this->isSuperAdmin() || $this->can('access-all-branches')) {
+        // Super Admin or users with no branch restriction → see all branches
+        if ($this->isSuperAdmin() || $this->can('access-all-branches') || !$this->hasBranch()) {
             return \Cache::remember('branches_all_active', 600, function () {
-                return Branch::where('is_active', true)->get();
+                return Branch::where('is_active', true)->orderBy('is_main', 'desc')->get();
             });
         }
 
-        // Regular user sees only their branch — cached per user 10 min
-        if ($this->hasBranch()) {
-            return \Cache::remember('user_branch_' . $this->id, 600, function () {
-                return Branch::where('id', $this->branch_id)
-                    ->where('is_active', true)
-                    ->get();
-            });
-        }
-
-        return collect();
+        // User assigned to a specific branch → only their branch
+        return \Cache::remember('user_branch_' . $this->id, 600, function () {
+            return Branch::where('id', $this->branch_id)
+                ->where('is_active', true)
+                ->get();
+        });
     }
 
     /**
@@ -138,14 +149,12 @@ class User extends Authenticatable implements CanResetPassword
      */
     public function getFilterBranchId($requestBranchId = null)
     {
-        // Super Admin or users with access-all-branches permission
-        if ($this->isSuperAdmin() || $this->can('access-all-branches')) {
-            // Return the requested branch_id (from filter/dropdown)
-            // If null, means "all branches"
-            return $requestBranchId;
+        // Super Admin / has permission / OR no branch assigned → can filter freely
+        if ($this->isSuperAdmin() || $this->can('access-all-branches') || !$this->hasBranch()) {
+            return $requestBranchId; // null = all branches, or selected branch_id
         }
 
-        // Regular user - always return their own branch
+        // User locked to a specific branch → always return their own branch
         return $this->branch_id;
     }
 

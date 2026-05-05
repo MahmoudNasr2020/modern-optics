@@ -86,35 +86,42 @@ class NotificationService
      */
     public static function getUserNotifications($limit = 10)
     {
-        $user = Auth::user();
+        $user  = Auth::user();
+        $roles = $user->getRoleNames()->toArray();
 
-        return Notification::where(function($query) use ($user) {
-            // 1. إشعارات موجهة للمستخدم مباشرة
+        return Notification::where(function ($query) use ($user, $roles) {
+            // 1. Notifications targeted directly at this user
             $query->where('user_id', $user->id);
 
-            // 2. إشعارات موجهة للفرع (إذا المستخدم عنده فرع)
+            // 2. Branch notifications
             if ($user->branch_id) {
+                // Regular employee → only their branch
                 $query->orWhere('branch_id', $user->branch_id);
+            } else {
+                // No branch assigned (super-admin / manager) → see ALL branch notifications
+                $query->orWhereNotNull('branch_id');
             }
 
-            // 3. إشعارات موجهة للأدوار (إذا المستخدم عنده أدوار)
-            $roles = $user->getRoleNames()->toArray();
+            // 3. Role-based notifications
             if (!empty($roles)) {
                 $query->orWhereIn('role', $roles);
             }
 
-            // 4. إشعارات عامة (مش موجهة لحد معين)
-            $query->orWhere(function($q) {
+            // 4. General broadcast notifications (no specific target)
+            $query->orWhere(function ($q) {
                 $q->whereNull('user_id')
-                    ->whereNull('branch_id')
-                    ->whereNull('role');
+                  ->whereNull('branch_id')
+                  ->whereNull('role');
             });
         })
-            // ✅✅✅ استبعاد الإشعارات اللي المستخدم نفسه عملها (بدون استثناءات!)
-            ->where('created_by', '!=', $user->id)
-            ->latest()
-            ->limit($limit)
-            ->get();
+        ->where(function ($q) use ($user) {
+            // Never show the user their own notifications
+            $q->whereNull('created_by')
+              ->orWhere('created_by', '!=', $user->id);
+        })
+        ->latest()
+        ->limit($limit)
+        ->get();
     }
 
     /**
@@ -123,34 +130,34 @@ class NotificationService
      */
     public static function getUnreadCount()
     {
-        $user = Auth::user();
+        $user  = Auth::user();
+        $roles = $user->getRoleNames()->toArray();
 
-        return Notification::where(function($query) use ($user) {
-            // 1. إشعارات موجهة للمستخدم مباشرة
+        return Notification::where(function ($query) use ($user, $roles) {
             $query->where('user_id', $user->id);
 
-            // 2. إشعارات موجهة للفرع
             if ($user->branch_id) {
                 $query->orWhere('branch_id', $user->branch_id);
+            } else {
+                $query->orWhereNotNull('branch_id');
             }
 
-            // 3. إشعارات موجهة للأدوار
-            $roles = $user->getRoleNames()->toArray();
             if (!empty($roles)) {
                 $query->orWhereIn('role', $roles);
             }
 
-            // 4. إشعارات عامة
-            $query->orWhere(function($q) {
+            $query->orWhere(function ($q) {
                 $q->whereNull('user_id')
-                    ->whereNull('branch_id')
-                    ->whereNull('role');
+                  ->whereNull('branch_id')
+                  ->whereNull('role');
             });
         })
-            // ✅✅✅ استبعاد الإشعارات اللي المستخدم نفسه عملها
-            ->where('created_by', '!=', $user->id)
-            ->where('is_read', false)
-            ->count();
+        ->where(function ($q) use ($user) {
+            $q->whereNull('created_by')
+              ->orWhere('created_by', '!=', $user->id);
+        })
+        ->where('is_read', false)
+        ->count();
     }
 
     /**

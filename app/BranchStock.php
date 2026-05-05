@@ -292,6 +292,7 @@ class BranchStock extends Model
 
         // ✅ Reduce from quantity (actual stock)
         $this->decrement('quantity', $quantity);
+        $this->refresh();
 
         // ✅ Reduce from reserved_quantity (if any)
         $toUnreserve = min($quantity, $this->reserved_quantity);
@@ -302,7 +303,33 @@ class BranchStock extends Model
         // Track total out
         $this->increment('total_out', $quantity);
 
+        // 🔔 Trigger low-stock / out-of-stock notifications
+        $this->checkAndNotifyStockLevel();
+
         return $this;
+    }
+
+    /**
+     * Check stock level and fire notification if needed.
+     * Avoids spamming: only fires once per transition (not on every reduce).
+     */
+    protected function checkAndNotifyStockLevel(): void
+    {
+        try {
+            $item   = $this->stockable;
+            $branch = $this->branch;
+
+            if (!$item || !$branch) return;
+
+            if ($this->quantity <= 0) {
+                \App\Services\NotificationService::outOfStock($item, $branch);
+            } elseif ($this->quantity <= $this->min_quantity) {
+                \App\Services\NotificationService::lowStock($item, $branch);
+            }
+        } catch (\Exception $e) {
+            // Never let notification errors break the main flow
+            \Log::warning('Stock notification failed: ' . $e->getMessage());
+        }
     }
 
     public function resetStock()

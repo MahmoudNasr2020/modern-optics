@@ -505,6 +505,27 @@
 
         <div class="navbar-right">
             <ul class="nav navbar-nav">
+
+                {{-- ══ Chat Button ══ --}}
+                <li>
+                    <a href="{{ route('dashboard.chat.index') }}" id="chatNavBtn" title="الرسائل الداخلية" style="
+                        display:flex;align-items:center;justify-content:center;
+                        position:relative;width:42px;height:42px;border-radius:50%;
+                        background:rgba(255,255,255,0.1);color:#fff;font-size:18px;
+                        text-decoration:none;transition:background .2s;margin-left:4px;
+                    " onmouseover="this.style.background='rgba(255,255,255,0.22)'"
+                       onmouseout="this.style.background='rgba(255,255,255,0.1)'">
+                        <i class="bi bi-chat-dots-fill"></i>
+                        <span id="chatNavBadge" style="
+                            display:none;position:absolute;top:2px;right:2px;
+                            min-width:18px;height:18px;padding:0 5px;
+                            background:#ef4444;color:#fff;font-size:10px;font-weight:700;
+                            border-radius:9px;border:2px solid transparent;
+                            display:none;align-items:center;justify-content:center;line-height:1;
+                        ">0</span>
+                    </a>
+                </li>
+
                 {{-- Notifications --}}
                 <li>
                     @include('dashboard.partials.notifications')
@@ -721,6 +742,89 @@
     });
 
     console.log('✅ Ready! Mode:', isMobile() ? 'Mobile' : 'Desktop');
+</script>
+
+{{-- ══ Chat: Sound + Online Ping + Unread Badge ══ --}}
+<script>
+// ── Notification Sound (Web Audio API — no external file needed) ──
+var _audioCtx = null;
+function _getACtx() {
+    if (_audioCtx && _audioCtx.state !== 'closed') return _audioCtx;
+    try {
+        var Ctx = window.AudioContext || window.webkitAudioContext;
+        _audioCtx = Ctx ? new Ctx() : null;
+    } catch(e) { _audioCtx = null; }
+    return _audioCtx;
+}
+// Unlock AudioContext on first user interaction (browser requirement)
+document.addEventListener('click', function() {
+    var c = _getACtx();
+    if (c && c.state === 'suspended') c.resume().catch(function(){});
+}, { passive: true });
+
+window.playMsgSound = function() {
+    var ctx = _getACtx();
+    if (!ctx || ctx.state === 'suspended') return;
+    try {
+        // Two ascending tones — WhatsApp-like feel
+        [[0, 880, 0.22], [0.19, 1100, 0.22]].forEach(function(p) {
+            var osc  = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type            = 'sine';
+            osc.frequency.value = p[1];
+            var t = ctx.currentTime + p[0];
+            gain.gain.setValueAtTime(0, t);
+            gain.gain.linearRampToValueAtTime(0.28, t + 0.018);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + p[2]);
+            osc.start(t);
+            osc.stop(t + p[2] + 0.02);
+        });
+    } catch(e) {}
+};
+
+// ── Online Ping — keep "متصل الآن" status alive every 55s ──
+(function pingOnline() {
+    var url = '{{ route("dashboard.chat.ping") }}';
+    function doPing() {
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } }).catch(function(){});
+    }
+    doPing();
+    setInterval(doPing, 55000);
+})();
+
+// ── Unread Badge Poller ──
+(function () {
+    var _chatBadge = document.getElementById('chatNavBadge');
+    var _chatUrl   = '{{ route("dashboard.chat.unread-count") }}';
+    var _prevCount = -1;
+
+    function refreshChatBadge() {
+        fetch(_chatUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (!data) return;
+                var cnt = data.count || 0;
+                // Play sound when new messages arrive (and not first load)
+                if (_prevCount >= 0 && cnt > _prevCount) {
+                    window.playMsgSound();
+                }
+                _prevCount = cnt;
+                if (!_chatBadge) return;
+                if (cnt > 0) {
+                    _chatBadge.textContent  = cnt > 99 ? '99+' : cnt;
+                    _chatBadge.style.display = 'flex';
+                } else {
+                    _chatBadge.style.display = 'none';
+                }
+            })
+            .catch(function () {});
+    }
+
+    refreshChatBadge();
+    setInterval(refreshChatBadge, 8000);
+})();
 </script>
 
 @if(Settings::get('show_chatbot', '1') !== '0')

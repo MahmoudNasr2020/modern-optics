@@ -424,6 +424,19 @@
                         <option value="ready"         {{ request()->status=='ready'         ? 'selected':'' }}>Ready</option>
                     </select>
                 </div>
+                @if($branches->count() > 1)
+                <div class="piv-fld">
+                    <label><i class="bi bi-building"></i> Branch</label>
+                    <select name="branch_id" class="piv-input">
+                        <option value="">All Branches</option>
+                        @foreach($branches as $branch)
+                            <option value="{{ $branch->id }}" {{ request()->branch_id == $branch->id ? 'selected' : '' }}>
+                                {{ $branch->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                @endif
                 <div class="piv-fld">
                     <label style="opacity:0;user-select:none;">.</label>
                     <label class="piv-has-remaining">
@@ -467,6 +480,7 @@
                     <th>Invoice Code</th>
                     <th>Date</th>
                     <th>Customer</th>
+                    <th>Branch</th>
                     <th>Doctor</th>
                     <th>Sales Person</th>
                     <th>Total (QAR)</th>
@@ -494,6 +508,15 @@
                     </td>
                     <td>
                         <span class="piv-customer-name">{{ $invoice->customer->english_name ?? '—' }}</span>
+                    </td>
+                    <td>
+                        @if($invoice->branch)
+                            <span style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;color:#1d4ed8;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;">
+                                <i class="bi bi-building"></i> {{ $invoice->branch->name }}
+                            </span>
+                        @else
+                            <span style="color:#d1d5db;">—</span>
+                        @endif
                     </td>
                     <td style="font-size:12px;color:#64748b;">
                         {{ $invoice->doctor->name ?? '—' }}

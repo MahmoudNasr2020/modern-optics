@@ -1670,7 +1670,16 @@ class ReportsController extends Controller
 
         $query = Invoice::with(['customer', 'branch', 'deliveredBy'])
             ->where('status', 'delivered')
-            ->whereBetween('delivered_at', [$start, $end]);
+            ->where(function ($q) use ($start, $end) {
+                // invoices with a proper delivered_at → filter by it
+                // invoices where delivered_at is NULL (e.g. migrated legacy data)
+                // → fall back to updated_at as delivery date
+                $q->whereBetween('delivered_at', [$start, $end])
+                  ->orWhere(function ($inner) use ($start, $end) {
+                      $inner->whereNull('delivered_at')
+                            ->whereBetween('updated_at', [$start, $end]);
+                  });
+            });
 
         if ($filterBranchId) {
             $query->where('branch_id', $filterBranchId);

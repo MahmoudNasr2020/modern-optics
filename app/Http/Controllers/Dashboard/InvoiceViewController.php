@@ -57,20 +57,32 @@ class InvoiceViewController extends Controller
      */
     public function pendingInvoices(Request $request)
     {
-        // Get invoices that are NOT delivered or returned (active invoices only)
-         $invoices = Invoice::where('status', '!=', 'returned')
-            ->whereIn('status', ['pending', 'Under Process','ready'])
+        $user     = auth()->user();
+        $branches = $user->getAccessibleBranches();
+
+        // Branch access control: employees only see their own branch
+        $branchId       = $request->input('branch_id');
+        $filterBranchId = $user->getFilterBranchId($branchId);
+
+        $invoices = Invoice::whereIn('status', ['pending', 'Under Process', 'ready'])
             ->with([
-                'customer' => function($query) {
+                'customer' => function ($query) {
                     $query->select('customer_id', 'english_name');
                 },
-                'user' => function($query) {
+                'user' => function ($query) {
                     $query->select('id', 'first_name');
                 },
-                'doctor' => function($query) {
+                'doctor' => function ($query) {
                     $query->select('id', 'name', 'code');
-                }
+                },
+                'branch' => function ($query) {
+                    $query->select('id', 'name');
+                },
             ])
+            // Branch filter (respects user access level)
+            ->when($filterBranchId, function ($q) use ($filterBranchId) {
+                $q->where('branch_id', $filterBranchId);
+            })
             // Filter by invoice code
             ->when($request->invoice_code, function ($q, $value) {
                 $q->where('invoice_code', 'like', "%{$value}%");
@@ -81,7 +93,7 @@ class InvoiceViewController extends Controller
             })
             // Filter by customer name
             ->when($request->customer_name, function ($q, $value) {
-                $q->whereHas('customer', function($query) use ($value) {
+                $q->whereHas('customer', function ($query) use ($value) {
                     $query->where('english_name', 'like', "%{$value}%");
                 });
             })
@@ -120,7 +132,7 @@ class InvoiceViewController extends Controller
             $invoice->has_active_po  = in_array($invoice->id, $poInvoiceIds);
         }
 
-        return view('dashboard.pages.invoice-new.pending-invoice', compact('invoices'));
+        return view('dashboard.pages.invoice-new.pending-invoice', compact('invoices', 'branches'));
     }
 
 
