@@ -2049,6 +2049,21 @@ class NewInvoiceController extends Controller
         $draft = session('invoice_draft');
         $user = auth()->user();
 
+        // ── Idempotency guard: if this draft was already saved, return existing invoice ──
+        if (!empty($draft['saved_invoice_id'])) {
+            $existing = Invoice::find($draft['saved_invoice_id']);
+            if ($existing) {
+                \Log::info("Idempotency: returning existing invoice #{$existing->invoice_code} for duplicate saveInvoice call");
+                return response()->json([
+                    'success'      => true,
+                    'message'      => 'Invoice already saved',
+                    'invoice_code' => $existing->invoice_code,
+                    'invoice_id'   => $existing->id,
+                    'redirect'     => route('dashboard.invoice.show', $existing->invoice_code),
+                ]);
+            }
+        }
+
         // Validate items exist
         if (empty($draft['items'])) {
             return response()->json([
@@ -2117,6 +2132,9 @@ class NewInvoiceController extends Controller
 
             $invoice->save();
 
+            // ── Mark draft as saved (idempotency) ──
+            session(['invoice_draft.saved_invoice_id' => $invoice->id]);
+
             // ✅ UPDATED: Reserve stock instead of reducing
             foreach ($draft['items'] as $item) {
                 $invoiceItem = new InvoiceItems();
@@ -2140,6 +2158,10 @@ class NewInvoiceController extends Controller
                 // ✅ Reserve stock (NOT reduce)
                 $this->reserveStock($item, $invoice->branch_id, $invoice->id);
             }
+
+            // ── Guard: clean any orphaned payments (safety net) ──
+            Payments::where('invoice_id', $invoice->id)->delete();
+            CashierTransaction::where('invoice_id', $invoice->id)->delete();
 
             // Create payments
             foreach ($request->payments as $paymentData) {
@@ -2188,6 +2210,9 @@ class NewInvoiceController extends Controller
             NotificationService::invoiceCreated($invoice);
 
             DB::commit();
+
+            // ── Clear session IMMEDIATELY after commit (prevents re-submission) ──
+            session()->forget('invoice_draft');
 
             try {
                 if (Settings::get('send_whatsapp') == 1) {

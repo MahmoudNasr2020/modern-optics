@@ -964,4 +964,229 @@ class LensPurchaseOrderController extends Controller
         session()->flash('success', 'Contact lenses received successfully! Stock has been updated.');
         return redirect()->route('dashboard.lens-purchase-orders.show', $po->id);
     }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  CONTACT LENS — REORDER (هالك) + DAMAGED LIST + RECOVER
+    // ══════════════════════════════════════════════════════════════════
+
+    public function reorderFormCL($id)
+    {
+        $po = LensPurchaseOrder::with([
+            'invoice.customer', 'branch', 'items.invoiceItem.product',
+        ])->findOrFail($id);
+
+        if ($po->po_type !== 'contact_lens') {
+            return redirect()->route('dashboard.lens-purchase-orders.show', $po->id)
+                ->with('error', 'This order is not a Contact Lens order.');
+        }
+
+        if (!$po->isReceived()) {
+            return redirect()->route('dashboard.lens-purchase-orders.show', $po->id)
+                ->with('error', 'You can only re-order from a received lab order.');
+        }
+
+        if ($po->branch_id && !auth()->user()->canAccessBranch($po->branch_id)) {
+            abort(403);
+        }
+
+        $labs = LensLab::active()->orderBy('name')->get();
+
+        return view('dashboard.pages.lens-purchase-orders.reorder-cl', compact('po', 'labs'));
+    }
+
+    public function reorderStoreCL(Request $request, $id)
+    {
+        $po = LensPurchaseOrder::with('items.invoiceItem.product')->findOrFail($id);
+
+        if (!$po->isReceived()) {
+            return redirect()->back()->with('error', 'Only received orders can be re-ordered.');
+        }
+
+        $request->validate([
+            'lab_name'    => 'required|string|max:255',
+            'new_cls'     => 'required|array|min:1',
+            'new_cls.*.product_id'  => 'required|integer|exists:products,id',
+            'new_cls.*.quantity'    => 'required|integer|min:1',
+        ]);
+
+        DB::transaction(function () use ($request, $po) {
+            $lab      = $request->lab_id ? LensLab::find($request->lab_id) : null;
+            $branchId = $po->branch_id ?? auth()->user()->branch_id;
+
+            // ── Step 1: Mark selected CLs as هالك ──────────────────
+            if ($request->defective) {
+                foreach ($request->defective as $itemId => $data) {
+                    if (empty($data['selected'])) continue;
+                    $qty       = max(1, (int) ($data['qty'] ?? 1));
+                    $productId = (int) ($data['product_numeric_id'] ?? 0);
+
+                    if ($productId) {
+                        // Log the damage movement (reuse lens_stock_entries with product_id)
+                        LensStockEntry::create([
+                            'branch_id'   => $branchId,
+                            'glass_lense_id' => null,
+                            'product_id'  => $productId,
+                            'direction'   => 'out',
+                            'quantity'    => $qty,
+                            'source_type' => 'damaged',
+                            'source_id'   => $po->id,
+                            'notes'       => "CL Damaged — PO# {$po->po_number}",
+                            'user_id'     => auth()->id(),
+                        ]);
+
+                        // Reduce BranchStock
+                        $bs = BranchStock::where('branch_id', $branchId)
+                            ->where('stockable_type', 'App\\Product')
+                            ->where('stockable_id', $productId)
+                            ->first();
+                        if ($bs && $bs->quantity >= $qty) {
+                            $bs->decrement('quantity', $qty);
+                            $bs->increment('total_out', $qty);
+                        }
+                    }
+                }
+            }
+
+            // ── Step 2: Create new CL PO ──────────────────────────
+            $newPo = LensPurchaseOrder::create([
+                'po_number'      => LensPurchaseOrder::generatePoNumber('contact_lens'),
+                'po_type'        => 'contact_lens',
+                'invoice_id'     => $po->invoice_id,
+                'branch_id'      => $branchId,
+                'lab_id'         => $lab ? $lab->id : null,
+                'lab_name'       => $lab ? $lab->name : $request->lab_name,
+                'status'         => 'pending',
+                'ordered_by'     => auth()->id(),
+                'notes'          => $request->notes ?? "CL Re-order — Original PO: {$po->po_number}",
+                'ordered_at'     => now(),
+                'is_reorder'     => 1,
+                'original_po_id' => $po->id,
+            ]);
+
+            foreach ($request->new_cls as $clData) {
+                $product = Product::find((int) $clData['product_id']);
+
+                LensPurchaseOrderItem::create([
+                    'purchase_order_id' => $newPo->id,
+                    'invoice_item_id'   => null,
+                    'glass_lense_id'    => null,
+                    'lens_product_id'   => $product ? $product->product_id : null,
+                    'quantity'          => (int) $clData['quantity'],
+                    'unit_cost'         => isset($clData['unit_cost']) && $clData['unit_cost'] !== '' ? $clData['unit_cost'] : null,
+                    'notes'             => ($clData['notes'] ?? '') ?: 'CL Re-order replacement',
+                ]);
+            }
+        });
+
+        session()->flash('success', 'CL Re-order created! Defective CLs moved to هالك. New CL PO created.');
+        return redirect()->route('dashboard.lens-purchase-orders.index');
+    }
+
+    // ─── Damaged CL list ─────────────────────────────────────────
+    public function damagedCL(Request $request)
+    {
+        $user     = auth()->user();
+        $branchId = $user->canSeeAllBranches() ? $request->branch_id : $user->branch_id;
+        $branches = $user->getAccessibleBranches();
+
+        $query = LensStockEntry::with(['product', 'branch', 'user', 'sourcePo.invoice'])
+            ->whereNull('glass_lense_id')
+            ->whereNotNull('product_id')
+            ->where('source_type', 'damaged')
+            ->where('direction', 'out');
+
+        if ($branchId) $query->where('branch_id', $branchId);
+
+        $damaged = $query->latest()->paginate(25);
+
+        foreach ($damaged as $entry) {
+            $entry->recovered_qty = LensStockEntry::where('source_type', 'recovered')
+                ->where('source_id', $entry->id)
+                ->where('direction', 'in')
+                ->sum('quantity');
+            $entry->remaining_damaged = max(0, $entry->quantity - $entry->recovered_qty);
+        }
+
+        $totalDamaged   = LensStockEntry::whereNull('glass_lense_id')->whereNotNull('product_id')
+            ->where('source_type', 'damaged')->where('direction', 'out')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))->sum('quantity');
+        $totalRecovered = LensStockEntry::where('source_type', 'recovered')->where('direction', 'in')
+            ->whereIn('source_id', function($sq) use ($branchId) {
+                $sq->select('id')->from('lens_stock_entries')
+                   ->whereNull('glass_lense_id')->whereNotNull('product_id')
+                   ->where('source_type', 'damaged')
+                   ->when($branchId, fn($q2) => $q2->where('branch_id', $branchId));
+            })->sum('quantity');
+        $netDamaged = max(0, $totalDamaged - $totalRecovered);
+
+        return view('dashboard.pages.lens-purchase-orders.damaged-cl',
+            compact('damaged', 'branches', 'branchId', 'totalDamaged', 'totalRecovered', 'netDamaged'));
+    }
+
+    // ─── Recover a damaged CL entry back to stock ───────────────
+    public function recoverDamagedCL(Request $request, $entryId)
+    {
+        $entry = LensStockEntry::findOrFail($entryId);
+
+        if ($entry->source_type !== 'damaged' || !is_null($entry->glass_lense_id)) {
+            return redirect()->back()->with('error', 'This is not a damaged CL entry.');
+        }
+
+        $alreadyRecovered = LensStockEntry::where('source_type', 'recovered')
+            ->where('source_id', $entry->id)->where('direction', 'in')->sum('quantity');
+        $remaining = $entry->quantity - $alreadyRecovered;
+
+        if ($remaining <= 0) {
+            return redirect()->back()->with('error', 'This entry has already been fully recovered.');
+        }
+
+        $request->validate([
+            'recover_qty' => "required|integer|min:1|max:{$remaining}",
+            'notes'       => 'nullable|string|max:500',
+        ]);
+
+        $qty = (int) $request->recover_qty;
+
+        DB::transaction(function () use ($entry, $qty, $request) {
+            // Log recovery
+            LensStockEntry::create([
+                'branch_id'      => $entry->branch_id,
+                'glass_lense_id' => null,
+                'product_id'     => $entry->product_id,
+                'direction'      => 'in',
+                'quantity'       => $qty,
+                'source_type'    => 'recovered',
+                'source_id'      => $entry->id,
+                'notes'          => $request->notes ?: "Recovered from CL damaged — Entry #{$entry->id}",
+                'user_id'        => auth()->id(),
+            ]);
+
+            // Add back to BranchStock
+            $bs = BranchStock::where('branch_id', $entry->branch_id)
+                ->where('stockable_type', 'App\\Product')
+                ->where('stockable_id', $entry->product_id)
+                ->first();
+
+            if ($bs) {
+                $bs->increment('quantity', $qty);
+                $bs->decrement('total_out', $qty);
+            } else {
+                BranchStock::create([
+                    'branch_id'         => $entry->branch_id,
+                    'stockable_type'    => 'App\\Product',
+                    'stockable_id'      => $entry->product_id,
+                    'product_id'        => $entry->product_id,
+                    'quantity'          => $qty,
+                    'reserved_quantity' => 0,
+                    'min_quantity'      => 0,
+                    'max_quantity'      => 9999,
+                    'total_in'          => $qty,
+                    'total_out'         => 0,
+                ]);
+            }
+        });
+
+        session()->flash('success', "Recovered {$qty} CL unit(s) back to stock.");
+        return redirect()->back();
+    }
 }

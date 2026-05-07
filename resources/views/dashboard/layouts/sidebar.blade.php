@@ -383,7 +383,11 @@
             @endif
 
             {{-- ── Contact Lenses standalone treeview ── --}}
-            <li class="treeview {{ Request::routeIs('dashboard.contact-lenses.*') ? 'active' : '' }}">
+            @php
+                $clActive = Request::routeIs('dashboard.contact-lenses.*')
+                    || Request::routeIs('dashboard.lens-purchase-orders.cl.*');
+            @endphp
+            <li class="treeview {{ $clActive ? 'active' : '' }}">
                 <a href="javascript:void(0)">
                     <i class="fa fa-eye" style="color:#3498db;"></i>
                     <span style="color:#3498db;font-weight:600;">Contact Lenses</span>
@@ -400,6 +404,21 @@
                             <i class="fa fa-plus-circle" style="color:#3498db;"></i> Add Contact Lens
                         </a>
                     </li>
+                    @can('view-lens-purchase-orders')
+                        <li class="{{ Request::routeIs('dashboard.lens-purchase-orders.index') && request('type') === 'contact_lens' ? 'active' : '' }}">
+                            <a href="{{ route('dashboard.lens-purchase-orders.index') }}?type=contact_lens">
+                                <i class="bi bi-eye" style="color:#3498db;font-size:13px;"></i> CL Lab Orders
+                            </a>
+                        </li>
+                    @endcan
+                    @can('view-damaged-lenses')
+                        <li class="{{ Request::routeIs('dashboard.lens-purchase-orders.cl.damaged-list') ? 'active' : '' }}">
+                            <a href="{{ route('dashboard.lens-purchase-orders.cl.damaged-list') }}" style="display:flex;align-items:center;gap:6px;">
+                                <i class="fa fa-exclamation-triangle" style="color:#e74c3c;"></i>
+                                <span>هالك CL — Damaged</span>
+                            </a>
+                        </li>
+                    @endcan
                 </ul>
             </li>
 
@@ -518,44 +537,63 @@
                         @endcan--}}
 
                         @can('view-stock')
+                            @php
+                                // Load branches accessible to this user once
+                                if (auth()->user()->canSeeAllBranches()) {
+                                    $sidebarStockBranches = \Cache::remember('sidebar_stock_branches', 300, function () {
+                                        return \App\Branch::where('is_active', true)->orderBy('is_main', 'desc')->orderBy('name')->get();
+                                    });
+                                } else {
+                                    $sidebarStockBranches = auth()->user()->branch
+                                        ? collect([auth()->user()->branch])
+                                        : collect();
+                                }
+                                // Detect which branch is currently active (from URL)
+                                $currentStockBranchId = optional(request()->route('branch'))->id ?? null;
+                            @endphp
                             <li class="treeview {{ strpos(Request::route()->getName(), 'branches.stock.') !== false ? 'active' : '' }}">
                                 <a href="javascript:void(0)">
                                     <i class="fa fa-dropbox"></i> Branch Stock
                                     <i class="fa fa-angle-left pull-right" style="margin-left: 7px !important;"></i>
                                 </a>
                                 <ul class="treeview-menu">
-                                    @php
-                                        // ✅ لو اليوزر عنده صلاحية على كل البرانشات
-                                        if (auth()->user()->canSeeAllBranches()) {
-                                            // يجيله البرانش الرئيسي أو أول برانش active — مكاش (5 دقايق)
-                                            $defaultBranch = \Cache::remember('sidebar_default_branch', 300, function () {
-                                                return \App\Branch::where('is_active', true)->orderBy('is_main', 'desc')->first();
-                                            });
-                                        } else {
-                                            // ✅ يوزر عادي → يجيله فرعه بس
-                                            $defaultBranch = auth()->user()->branch;
-                                        }
-                                    @endphp
-
-                                    @if($defaultBranch)
-                                        <li class="{{ Request::route()->getName() == 'dashboard.branches.stock.index' ? 'active' : '' }}">
-                                            <a href="{{ route('dashboard.branches.stock.index', $defaultBranch) }}"><i class="fa fa-dot-circle-o"></i> View Stock</a>
+                                    @forelse($sidebarStockBranches as $sb)
+                                        @php
+                                            $sbActive = ($currentStockBranchId == $sb->id);
+                                        @endphp
+                                        <li class="treeview {{ $sbActive ? 'active' : '' }}">
+                                            <a href="javascript:void(0)">
+                                                <i class="fa fa-building-o"></i>
+                                                {{ $sb->is_main ? '★ ' : '' }}{{ $sb->name }}
+                                                <i class="fa fa-angle-left pull-right"></i>
+                                            </a>
+                                            <ul class="treeview-menu">
+                                                <li class="{{ ($sbActive && Request::route()->getName() == 'dashboard.branches.stock.index') ? 'active' : '' }}">
+                                                    <a href="{{ route('dashboard.branches.stock.index', $sb) }}">
+                                                        <i class="fa fa-dot-circle-o"></i> View Stock
+                                                    </a>
+                                                </li>
+                                                @can('add-stock')
+                                                <li class="{{ ($sbActive && Request::route()->getName() == 'dashboard.branches.stock.create') ? 'active' : '' }}">
+                                                    <a href="{{ route('dashboard.branches.stock.create', $sb) }}">
+                                                        <i class="fa fa-dot-circle-o"></i> Add Product
+                                                    </a>
+                                                </li>
+                                                @endcan
+                                                @can('view-stock-reports')
+                                                <li class="{{ ($sbActive && Request::route()->getName() == 'dashboard.branches.stock.report') ? 'active' : '' }}">
+                                                    <a href="{{ route('dashboard.branches.stock.report', $sb) }}">
+                                                        <i class="fa fa-dot-circle-o"></i> Stock Report
+                                                    </a>
+                                                </li>
+                                                @endcan
+                                            </ul>
                                         </li>
-                                        @can('add-stock')
-                                            <li class="{{ Request::route()->getName() == 'dashboard.branches.stock.create' ? 'active' : '' }}">
-                                                <a href="{{ route('dashboard.branches.stock.create', $defaultBranch) }}"><i class="fa fa-dot-circle-o"></i> Add Product</a>
-                                            </li>
-                                        @endcan
-                                        @can('view-stock-reports')
-                                            <li class="{{ Request::route()->getName() == 'dashboard.branches.stock.report' ? 'active' : '' }}">
-                                                <a href="{{ route('dashboard.branches.stock.report', $defaultBranch) }}"><i class="fa fa-dot-circle-o"></i> Stock Report</a>
-                                            </li>
-                                        @endcan
-                                    @else
+                                    @empty
                                         @can('create-branches')
                                             <li><a href="{{ route('dashboard.branches.create') }}"><i class="fa fa-exclamation-triangle"></i> Create Branch First</a></li>
                                         @endcan
-                                    @endif
+                                    @endforelse
                                 </ul>
                             </li>
                         @endcan
@@ -978,12 +1016,13 @@
                 @endcan
             @endif
 
-            {{-- ── Chat ── --}}
+            {{-- ── Chat (controlled by chat_enabled setting) ── --}}
+            @if(\App\Facades\Settings::get('chat_enabled', '1') !== '0')
             <div class="sidebar-divider"></div>
             <li class="{{ Request::routeIs('dashboard.chat.*') ? 'active' : '' }}">
                 <a href="{{ route('dashboard.chat.index') }}">
                     <i class="bi bi-chat-dots-fill" style="color:#34d399 !important;"></i>
-                    <span>الرسائل الداخلية</span>
+                    <span>Internal Chat</span>
                     @php
                         $sidebarUnreadChat = \App\Message::where('receiver_id', auth()->id())->where('is_read', false)->count();
                     @endphp
@@ -994,6 +1033,7 @@
                     @endif
                 </a>
             </li>
+            @endif
 
             {{-- ── AI Assistant ── --}}
             @can('view-ai-assistant')

@@ -134,12 +134,21 @@
                     @endcan
                     @can('add-stock')
                         @if($po->isReceived())
-                            <button type="button"
-                                    class="action-btn"
-                                    style="background:linear-gradient(135deg,#e74c3c,#c0392b);color:#fff;"
-                                    onclick="confirmReorder('{{ route('dashboard.lens-purchase-orders.reorder', $po->id) }}')">
-                                <i class="fa fa-refresh"></i> Re-order Defective
-                            </button>
+                            @if($po->po_type === 'contact_lens')
+                                <button type="button"
+                                        class="action-btn"
+                                        style="background:linear-gradient(135deg,#e74c3c,#c0392b);color:#fff;"
+                                        onclick="confirmReorder('{{ route('dashboard.lens-purchase-orders.cl.reorder', $po->id) }}')">
+                                    <i class="fa fa-refresh"></i> Re-order Defective CLs
+                                </button>
+                            @else
+                                <button type="button"
+                                        class="action-btn"
+                                        style="background:linear-gradient(135deg,#e74c3c,#c0392b);color:#fff;"
+                                        onclick="confirmReorder('{{ route('dashboard.lens-purchase-orders.reorder', $po->id) }}')">
+                                    <i class="fa fa-refresh"></i> Re-order Defective
+                                </button>
+                            @endif
                         @endif
                     @endcan
                 </div>

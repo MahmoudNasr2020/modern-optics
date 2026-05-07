@@ -265,6 +265,12 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
         Route::post('/cl/store',                        'LensPurchaseOrderController@storeCL')->name('cl.store');
         Route::get('/{id}/receive-cl',                  'LensPurchaseOrderController@receiveCLForm')->name('cl.receive');
         Route::post('/{id}/mark-cl-received',           'LensPurchaseOrderController@markCLReceived')->name('cl.mark-received');
+        // ── Contact Lens Re-order (هالك) ────────────────────────
+        Route::get('/{id}/reorder-cl',                  'LensPurchaseOrderController@reorderFormCL')->name('cl.reorder');
+        Route::post('/{id}/reorder-cl',                 'LensPurchaseOrderController@reorderStoreCL')->name('cl.reorder.store');
+        // ── Contact Lens Damaged list & recover ─────────────────
+        Route::get('/cl/damaged/list',                  'LensPurchaseOrderController@damagedCL')->name('cl.damaged-list');
+        Route::post('/cl/damaged/{entryId}/recover',    'LensPurchaseOrderController@recoverDamagedCL')->name('cl.recover-damaged');
     });
 
     // Lens Labs

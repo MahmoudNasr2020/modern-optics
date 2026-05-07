@@ -9,9 +9,14 @@ class LensStockEntry extends Model
     protected $table = 'lens_stock_entries';
 
     protected $fillable = [
-        'branch_id', 'glass_lense_id', 'side',
+        'branch_id', 'glass_lense_id', 'product_id', 'side',
         'direction', 'quantity', 'source_type', 'source_id', 'notes', 'user_id',
     ];
+
+    public function product()
+    {
+        return $this->belongsTo(\App\Product::class, 'product_id', 'product_id');
+    }
 
     public function lens()
     {
