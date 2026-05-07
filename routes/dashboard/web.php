@@ -14,7 +14,8 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
 
     //Route::group(['middleware'=>'system.maintenance'],function(){
 
-    Route::get('home' , 'DashboardController@index')->name('index');
+    Route::get('home',    'DashboardController@index')->name('index');
+    Route::get('refresh', 'DashboardController@refresh')->name('refresh');
 
     // ========== AI ASSISTANT ==========
     Route::group(['prefix' => 'assistant', 'as' => 'assistant.'], function () {
@@ -123,6 +124,8 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::get('customer-eye' ,'EyeTestController@cusromerEyeTest')->name('customer-eye');
     Route::get('print-eye-test/{id}' ,'EyeTestController@printEyeTest')->name('print-eye-test');
     Route::delete('delete-eye-test/{id}' ,'EyeTestController@deleteEyeTest')->name('delete-eye-test');
+    Route::post('delete-eye-test/{id}' ,'EyeTestController@deleteEyeTest')->name('delete-eye-test-post'); // AJAX alias
+    Route::get('/cancel-eye-test/{id}', 'EyeTestController@cancelEyeTest')->name('cancel-eye-test');
     Route::get('view-lenses/{id}' ,'EyeTestController@getLensesView')->name('get-lenses-view');
     Route::get('add-eye-test/{id}' ,'EyeTestController@addNewEyTest')->name('add-eye-test');
     Route::post('add-eye-test/{id}' ,'EyeTestController@StoreNewEyTest')->name('new-eye-test');
@@ -257,6 +260,11 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
         Route::post('/damaged/{entryId}/recover',       'LensPurchaseOrderController@recoverDamaged')->name('recover-damaged');
         // Damaged lenses management (هالك)
         Route::get('/damaged/list',                     'LensPurchaseOrderController@damagedLenses')->name('damaged-list');
+        // ── Contact Lens Lab Orders ──────────────────────────────
+        Route::get('/cl/create/{invoiceId}',            'LensPurchaseOrderController@createCL')->name('cl.create');
+        Route::post('/cl/store',                        'LensPurchaseOrderController@storeCL')->name('cl.store');
+        Route::get('/{id}/receive-cl',                  'LensPurchaseOrderController@receiveCLForm')->name('cl.receive');
+        Route::post('/{id}/mark-cl-received',           'LensPurchaseOrderController@markCLReceived')->name('cl.mark-received');
     });
 
     // Lens Labs
@@ -426,6 +434,9 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
             // Product Search
             Route::post('/products/search', 'NewInvoiceController@searchProducts')
                 ->name('invoice.products.search');
+
+            Route::post('/products/sizes-colors', 'NewInvoiceController@getSizesColors')
+                ->name('invoice.products.sizes-colors');
 
             Route::post('/products/get-by-id', 'NewInvoiceController@getProductById')
                 ->name('invoice.products.get-by-id');

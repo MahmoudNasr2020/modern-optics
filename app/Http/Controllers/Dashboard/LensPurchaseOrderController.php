@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Dashboard;
 
 use App\Branch;
+use App\BranchStock;
 use App\glassLense;
 use App\Http\Controllers\Controller;
 use App\Invoice;
@@ -11,6 +12,7 @@ use App\LensLab;
 use App\LensPurchaseOrder;
 use App\LensPurchaseOrderItem;
 use App\LensStockEntry;
+use App\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -764,5 +766,202 @@ class LensPurchaseOrderController extends Controller
 
         return view('dashboard.pages.lens-purchase-orders.lens-stock',
             compact('lenses', 'branches', 'branchId'));
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  CONTACT LENS LAB ORDERS  (po_type = 'contact_lens')
+    // ════════════════════════════════════════════════════════════
+
+    // ─── Create CL PO from invoice ───────────────────────────────
+    public function createCL($invoiceId)
+    {
+        $invoice = Invoice::with(['customer', 'branch', 'invoiceItems.product'])->findOrFail($invoiceId);
+
+        if ($invoice->branch_id && !auth()->user()->canAccessBranch($invoice->branch_id)) {
+            abort(403);
+        }
+
+        // Find CL items (type='product', category_id=4) not already in an active CL PO
+        $existingClPoItemIds = LensPurchaseOrderItem::whereHas('purchaseOrder', function ($q) use ($invoiceId) {
+            $q->where('invoice_id', $invoiceId)
+              ->where('po_type', 'contact_lens')
+              ->whereNotIn('status', ['cancelled']);
+        })->pluck('invoice_item_id')->toArray();
+
+        $clItems = $invoice->invoiceItems()
+            ->where('type', 'product')
+            ->whereHas('product', function ($q) {
+                $q->where('category_id', 4);
+            })
+            ->whereNotIn('id', $existingClPoItemIds)
+            ->with('product')
+            ->get();
+
+        if ($clItems->isEmpty()) {
+            return redirect()->route('dashboard.lens-purchase-orders.index')
+                ->with('info', 'No contact lens items found (or all already have active lab orders).');
+        }
+
+        $labs       = LensLab::active()->orderBy('name')->get();
+        $existingPos = LensPurchaseOrder::where('invoice_id', $invoiceId)
+            ->where('po_type', 'contact_lens')
+            ->whereNotIn('status', ['cancelled'])
+            ->with('items')
+            ->get();
+
+        return view('dashboard.pages.lens-purchase-orders.create-cl', compact(
+            'invoice', 'clItems', 'labs', 'existingPos'
+        ));
+    }
+
+    // ─── Store CL PO ─────────────────────────────────────────────
+    public function storeCL(Request $request)
+    {
+        $request->validate([
+            'invoice_id'      => 'required|exists:invoices,id',
+            'lab_name'        => 'required|string|max:255',
+            'notes'           => 'nullable|string|max:1000',
+            'items'           => 'required|array|min:1',
+            'items.*.invoice_item_id' => 'required|exists:invoice_items,id',
+            'items.*.quantity'        => 'required|integer|min:1',
+            'items.*.unit_cost'       => 'nullable|numeric|min:0',
+            'items.*.notes'           => 'nullable|string|max:500',
+        ]);
+
+        $invoice = Invoice::findOrFail($request->invoice_id);
+
+        if ($invoice->branch_id && !auth()->user()->canAccessBranch($invoice->branch_id)) {
+            abort(403);
+        }
+
+        DB::transaction(function () use ($request, $invoice) {
+            $lab      = $request->lab_id ? LensLab::find($request->lab_id) : null;
+            $branchId = $invoice->branch_id ?? auth()->user()->branch_id;
+
+            $po = LensPurchaseOrder::create([
+                'po_number'  => LensPurchaseOrder::generatePoNumber('contact_lens'),
+                'po_type'    => 'contact_lens',
+                'invoice_id' => $invoice->id,
+                'branch_id'  => $branchId,
+                'lab_id'     => $lab ? $lab->id : null,
+                'lab_name'   => $lab ? $lab->name : $request->lab_name,
+                'status'     => 'pending',
+                'ordered_by' => auth()->id(),
+                'notes'      => $request->notes,
+                'ordered_at' => now(),
+            ]);
+
+            foreach ($request->items as $itemData) {
+                $invoiceItem = InvoiceItems::findOrFail($itemData['invoice_item_id']);
+
+                LensPurchaseOrderItem::create([
+                    'purchase_order_id' => $po->id,
+                    'invoice_item_id'   => $invoiceItem->id,
+                    'glass_lense_id'    => null,
+                    'lens_product_id'   => $invoiceItem->product_id,
+                    'quantity'          => $itemData['quantity'],
+                    'unit_cost'         => $itemData['unit_cost'] ?? null,
+                    'notes'             => $itemData['notes'] ?? null,
+                ]);
+            }
+        });
+
+        session()->flash('success', 'Contact Lens lab order created successfully!');
+        return redirect()->route('dashboard.lens-purchase-orders.index');
+    }
+
+    // ─── Receive form for CL PO ──────────────────────────────────
+    public function receiveCLForm($id)
+    {
+        $po = LensPurchaseOrder::with([
+            'invoice.customer', 'branch', 'items.invoiceItem.product',
+        ])->findOrFail($id);
+
+        if ($po->branch_id && !auth()->user()->canAccessBranch($po->branch_id)) {
+            abort(403);
+        }
+
+        if ($po->isReceived() || $po->isCancelled()) {
+            return redirect()->route('dashboard.lens-purchase-orders.show', $po->id)
+                ->with('error', 'This order has already been ' . $po->status . '.');
+        }
+
+        return view('dashboard.pages.lens-purchase-orders.receive-cl', compact('po'));
+    }
+
+    // ─── Mark CL PO as received ───────────────────────────────────
+    public function markCLReceived(Request $request, $id)
+    {
+        $po = LensPurchaseOrder::with('items.invoiceItem')->findOrFail($id);
+
+        if ($po->branch_id && !auth()->user()->canAccessBranch($po->branch_id)) {
+            abort(403);
+        }
+
+        if ($po->isReceived() || $po->isCancelled()) {
+            return redirect()->route('dashboard.lens-purchase-orders.show', $po->id)
+                ->with('error', 'Cannot update this order.');
+        }
+
+        $request->validate([
+            'received_quantities'   => 'required|array',
+            'received_quantities.*' => 'required|integer|min:0',
+        ]);
+
+        DB::transaction(function () use ($request, $po) {
+            foreach ($po->items as $item) {
+                $receivedQty = (int) ($request->received_quantities[$item->id] ?? 0);
+                if ($receivedQty <= 0) continue;
+
+                $item->update(['received_quantity' => $receivedQty]);
+
+                // Find the Product using product_id string
+                $product = Product::where('product_id', $item->lens_product_id)->first();
+
+                if ($product) {
+                    // Update BranchStock for this product
+                    $branchStock = BranchStock::where('branch_id', $po->branch_id)
+                        ->where('stockable_type', 'App\\Product')
+                        ->where('stockable_id', $product->id)
+                        ->first();
+
+                    if ($branchStock) {
+                        $branchStock->increment('quantity', $receivedQty);
+                        $branchStock->increment('total_in', $receivedQty);
+                    } else {
+                        // Create if doesn't exist
+                        BranchStock::create([
+                            'branch_id'      => $po->branch_id,
+                            'stockable_type' => 'App\\Product',
+                            'stockable_id'   => $product->id,
+                            'product_id'     => $product->id,
+                            'quantity'       => $receivedQty,
+                            'reserved_quantity' => 0,
+                            'min_quantity'   => 0,
+                            'max_quantity'   => 9999,
+                            'total_in'       => $receivedQty,
+                            'total_out'      => 0,
+                        ]);
+                    }
+                }
+
+                // Mark invoice item as 'ready'
+                if ($item->invoice_item_id) {
+                    $invoiceItem = InvoiceItems::find($item->invoice_item_id);
+                    if ($invoiceItem && $invoiceItem->status !== 'ready') {
+                        $invoiceItem->update(['status' => 'ready']);
+                    }
+                }
+            }
+
+            $po->update([
+                'status'      => 'received',
+                'received_by' => auth()->id(),
+                'received_at' => now(),
+            ]);
+        });
+
+        session()->flash('success', 'Contact lenses received successfully! Stock has been updated.');
+        return redirect()->route('dashboard.lens-purchase-orders.show', $po->id);
     }
 }

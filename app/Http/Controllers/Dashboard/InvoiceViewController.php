@@ -113,7 +113,7 @@ class InvoiceViewController extends Controller
             ->paginate(20)
             ->appends($request->except('page'));
 
-        // Flag lens items and active POs
+        // Flag lens items, CL items and active POs
         $invoiceIds = $invoices->pluck('id');
 
         $lensInvoiceIds = \DB::table('invoice_items')
@@ -122,17 +122,42 @@ class InvoiceViewController extends Controller
             ->pluck('invoice_id')
             ->unique()->toArray();
 
+        // Contact lens items: type='product' AND product has category_id=4
+        $clInvoiceIds = \DB::table('invoice_items')
+            ->join('products', 'products.product_id', '=', 'invoice_items.product_id')
+            ->whereIn('invoice_items.invoice_id', $invoiceIds)
+            ->where('invoice_items.type', 'product')
+            ->where('products.category_id', 4)
+            ->pluck('invoice_items.invoice_id')
+            ->unique()->toArray();
+
+        // Active lens POs
         $poInvoiceIds = \App\LensPurchaseOrder::whereIn('invoice_id', $invoiceIds)
+            ->where(function ($q) { $q->where('po_type', 'lens')->orWhereNull('po_type'); })
+            ->whereNotIn('status', ['cancelled'])
+            ->pluck('invoice_id')
+            ->unique()->toArray();
+
+        // Active CL POs
+        $clPoInvoiceIds = \App\LensPurchaseOrder::whereIn('invoice_id', $invoiceIds)
+            ->where('po_type', 'contact_lens')
             ->whereNotIn('status', ['cancelled'])
             ->pluck('invoice_id')
             ->unique()->toArray();
 
         foreach ($invoices as $invoice) {
-            $invoice->has_lens_items = in_array($invoice->id, $lensInvoiceIds);
-            $invoice->has_active_po  = in_array($invoice->id, $poInvoiceIds);
+            $invoice->has_lens_items  = in_array($invoice->id, $lensInvoiceIds);
+            $invoice->has_cl_items    = in_array($invoice->id, $clInvoiceIds);
+            $invoice->has_active_po   = in_array($invoice->id, $poInvoiceIds);
+            $invoice->has_active_cl_po = in_array($invoice->id, $clPoInvoiceIds);
         }
 
-        return view('dashboard.pages.invoice-new.pending-invoice', compact('invoices', 'branches'));
+        $pendingDesign = \App\Facades\Settings::get('pending_invoice_design', 'design2');
+        $pendingView   = $pendingDesign === 'design1'
+            ? 'dashboard.pages.invoices.pending'
+            : 'dashboard.pages.invoice-new.pending-invoice';
+
+        return view($pendingView, compact('invoices', 'branches'));
     }
 
 
@@ -523,16 +548,17 @@ class InvoiceViewController extends Controller
             DB::commit();
 
             try {
-                if (Settings::get('send_whatsapp') == true)
-                {
-                    if($invoice->status == 'ready') {
+                if (Settings::get('send_whatsapp') == 1) {
+                    if ($invoice->status == 'ready') {
                         $whatsapp = app(InvoiceWhatsAppNotifier::class);
                         $whatsapp->sendInvoiceReady($invoice);
-
                     }
                 }
-            } catch (\Exception $e) {
-                \Log::warning("WhatsApp failed: " . $e->getMessage());
+            } catch (\Throwable $e) {
+                \Log::warning("WhatsApp failed (invoice ready): " . $e->getMessage(), [
+                    'invoice_id' => $invoice->id ?? null,
+                    'trace'      => $e->getTraceAsString(),
+                ]);
             }
 
             if($request->status == 'delivered') {
@@ -626,14 +652,16 @@ class InvoiceViewController extends Controller
             DB::commit();
 
             try {
-                if (Settings::get('send_whatsapp') == true) {
-                    $whatsapp = app(InvoiceWhatsAppNotifier::class);
-                    // 2. رسالة لكل دفعة
-                    $paymentMethod = $this->getPaymentMethodText($payment['type']);
-                    $whatsapp->sendPaymentReceived($invoice, $payment['payed_amount'], $paymentMethod);
+                if (Settings::get('send_whatsapp') == 1) {
+                    $whatsapp      = app(InvoiceWhatsAppNotifier::class);
+                    $paymentMethod = $this->getPaymentMethodText($payment['type'] ?? 'cash');
+                    $whatsapp->sendPaymentReceived($invoice, $payment['payed_amount'] ?? 0, $paymentMethod);
                 }
-            } catch (\Exception $e) {
-                \Log::warning("WhatsApp failed: " . $e->getMessage());
+            } catch (\Throwable $e) {
+                \Log::warning("WhatsApp failed (payment received): " . $e->getMessage(), [
+                    'invoice_id' => $invoice->id ?? null,
+                    'trace'      => $e->getTraceAsString(),
+                ]);
             }
 
             return redirect()->back()

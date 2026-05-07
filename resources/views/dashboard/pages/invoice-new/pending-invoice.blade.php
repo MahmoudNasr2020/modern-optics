@@ -265,6 +265,19 @@
     text-decoration: none; transition: all .2s;
 }
 .piv-lab-new:hover { background: #f97316; color: #fff; border-color: #f97316; text-decoration: none; }
+.piv-cl-active {
+    display: inline-flex; align-items: center; gap: 4px;
+    color: #2563eb; font-size: 12px; font-weight: 700;
+}
+.piv-cl-new {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #eff6ff; border: 1.5px solid #bfdbfe;
+    color: #1d4ed8; border-radius: 7px;
+    padding: 4px 10px; font-size: 11px; font-weight: 700;
+    text-decoration: none; transition: all .2s;
+}
+.piv-cl-new:hover { background: #3b82f6; color: #fff; border-color: #3b82f6; text-decoration: none; }
+.piv-lab-group { display: flex; flex-direction: column; gap: 4px; }
 
 /* Row number */
 .piv-row-num {
@@ -563,18 +576,37 @@
                         @endif
                     </td>
                     <td>
-                        @if($invoice->has_lens_items)
-                            @if($invoice->has_active_po)
-                                <a href="{{ route('dashboard.lens-purchase-orders.index') }}?search={{ $invoice->invoice_code }}"
-                                   class="piv-lab-active" title="View Lab Order">
-                                    <i class="bi bi-flask-fill"></i> Active
-                                </a>
-                            @else
-                                <a href="{{ route('dashboard.lens-purchase-orders.create', $invoice->id) }}"
-                                   class="piv-lab-new" title="Create Lab Order">
-                                    <i class="bi bi-flask"></i> Order
-                                </a>
-                            @endif
+                        @if($invoice->has_lens_items || $invoice->has_cl_items)
+                            <div class="piv-lab-group">
+                                {{-- Lens Lab Order --}}
+                                @if($invoice->has_lens_items)
+                                    @if($invoice->has_active_po)
+                                        <a href="{{ route('dashboard.lens-purchase-orders.index') }}?search={{ $invoice->invoice_code }}"
+                                           class="piv-lab-active" title="View Lens Lab Order">
+                                            <i class="fa fa-flask"></i> Lens Active
+                                        </a>
+                                    @else
+                                        <a href="{{ route('dashboard.lens-purchase-orders.create', $invoice->id) }}"
+                                           class="piv-lab-new" title="Create Lens Lab Order">
+                                            <i class="fa fa-flask"></i> Lens Order
+                                        </a>
+                                    @endif
+                                @endif
+                                {{-- Contact Lens Lab Order --}}
+                                @if($invoice->has_cl_items)
+                                    @if($invoice->has_active_cl_po)
+                                        <a href="{{ route('dashboard.lens-purchase-orders.index') }}?search={{ $invoice->invoice_code }}"
+                                           class="piv-cl-active" title="View CL Lab Order">
+                                            <i class="bi bi-eye-fill"></i> CL Active
+                                        </a>
+                                    @else
+                                        <a href="{{ route('dashboard.lens-purchase-orders.cl.create', $invoice->id) }}"
+                                           class="piv-cl-new" title="Create Contact Lens Lab Order">
+                                            <i class="bi bi-eye"></i> CL Order
+                                        </a>
+                                    @endif
+                                @endif
+                            </div>
                         @else
                             <span style="color:#d1d5db;">—</span>
                         @endif

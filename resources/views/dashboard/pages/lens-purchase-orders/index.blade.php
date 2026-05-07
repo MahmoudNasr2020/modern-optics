@@ -238,6 +238,11 @@
                     <tr>
                         <td>
                             <span class="po-badge">{{ $po->po_number }}</span>
+                            @if($po->po_type === 'contact_lens')
+                                <span style="background:#e3f2fd;color:#1565c0;padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;margin-left:4px;">
+                                    <i class="bi bi-eye"></i> CL
+                                </span>
+                            @endif
                         </td>
                         <td>
                             @if($po->invoice)
@@ -291,10 +296,17 @@
                                 </a>
                                 @can('increase-stock')
                                     @if(!$po->isReceived() && !$po->isCancelled())
-                                        <a href="{{ route('dashboard.lens-purchase-orders.receive', $po->id) }}"
-                                           class="btn btn-receive" title="Receive Lenses">
-                                            <i class="bi bi-box-arrow-in-down"></i>
-                                        </a>
+                                        @if($po->po_type === 'contact_lens')
+                                            <a href="{{ route('dashboard.lens-purchase-orders.cl.receive', $po->id) }}"
+                                               class="btn btn-receive" title="Receive Contact Lenses" style="background:#1565c0;">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        @else
+                                            <a href="{{ route('dashboard.lens-purchase-orders.receive', $po->id) }}"
+                                               class="btn btn-receive" title="Receive Lenses">
+                                                <i class="bi bi-box-arrow-in-down"></i>
+                                            </a>
+                                        @endif
                                     @endif
                                 @endcan
                             </div>

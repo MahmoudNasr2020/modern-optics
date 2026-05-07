@@ -188,141 +188,166 @@
 
         itemsCount.text(invoiceState.items.length + ' Items');
 
+        var hasGlobalDiscount = invoiceState.discount && (invoiceState.discount.type || invoiceState.discount.payer_type);
+        var totalDiscount = roundTo2(parseFloat(invoiceState.totals.subtotal_before) - parseFloat(invoiceState.totals.grand_total));
+
         if (invoiceState.items.length === 0) {
             container.html(`
-            <div class="empty-state">
-                <i class="bi bi-inbox"></i>
-                <h4>No Items Added Yet</h4>
-                <p>Use the search above to add products to this invoice</p>
+            <div style="text-align:center;padding:50px 20px;color:#adb5bd;">
+                <i class="bi bi-inbox" style="font-size:52px;opacity:.4;display:block;margin-bottom:16px;"></i>
+                <h4 style="font-weight:700;color:#6c757d;margin-bottom:8px;">No Items Added Yet</h4>
+                <p style="font-size:14px;">Search for products above or select lenses from the eye test section</p>
             </div>
         `);
             return;
         }
 
+        /* ── Inline styles shared across rows ── */
+        var thStyle  = 'padding:12px 14px;text-align:center;font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap;color:rgba(255,255,255,.92);border:none;';
+        var tdStyle  = 'padding:11px 14px;text-align:center;border-bottom:1px solid #f0f2f5;vertical-align:middle;font-size:13px;';
+
         var tableHTML = `
-        <table class="table items-table">
+        <style>
+            .inv-items-tbl { width:100%; border-collapse:collapse; min-width:720px; }
+            .inv-items-tbl thead tr { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); }
+            .inv-items-tbl tbody tr { transition:background .15s; }
+            .inv-items-tbl tbody tr:hover { background:#f8f6ff !important; }
+            .inv-items-tbl tbody tr:nth-child(even) { background:#fafbff; }
+            .inv-item-badge-product { background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.5px;white-space:nowrap;display:inline-flex;align-items:center;gap:3px; }
+            .inv-item-badge-lens    { background:linear-gradient(135deg,#11998e,#38ef7d);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.5px;white-space:nowrap;display:inline-flex;align-items:center;gap:3px; }
+            .inv-qty-input { width:58px;padding:5px 6px;border:2px solid #e0e6ed;border-radius:8px;font-size:13px;font-weight:700;text-align:center;transition:border-color .2s; }
+            .inv-qty-input:focus { border-color:#667eea;outline:none; }
+            .inv-qty-btn { background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center;transition:transform .1s; }
+            .inv-qty-btn:hover { transform:scale(1.1); }
+            .inv-del-btn { background:linear-gradient(135deg,#ff6b6b,#e74c3c);color:#fff;border:none;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;justify-content:center;transition:all .2s; }
+            .inv-del-btn:hover { transform:scale(1.1);box-shadow:0 3px 10px rgba(231,76,60,.4); }
+            .inv-stock-ok  { background:#dcfce7;color:#166534;font-size:11px;font-weight:700;padding:3px 9px;border-radius:10px;border:1px solid #bbf7d0; }
+            .inv-stock-low { background:#fef9c3;color:#854d0e;font-size:11px;font-weight:700;padding:3px 9px;border-radius:10px;border:1px solid #fef08a; }
+            .inv-stock-out { background:#fee2e2;color:#991b1b;font-size:11px;font-weight:700;padding:3px 9px;border-radius:10px;border:1px solid #fecaca; }
+            .inv-disc-badge { background:#dcfce7;color:#166534;font-size:11px;font-weight:700;padding:3px 8px;border-radius:8px; }
+            .inv-global-disc-badge { background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;border:1px dashed #fbbf24; }
+            .inv-tfoot-total { background:linear-gradient(135deg,#667eea,#764ba2);color:#fff; }
+            .inv-tfoot-discount { background:linear-gradient(135deg,#ff6b6b,#e74c3c);color:#fff; }
+            .inv-tfoot-grand { background:linear-gradient(135deg,#11998e,#38ef7d);color:#1a1a1a; }
+        </style>
+        <div style="overflow-x:auto;">
+        <table class="inv-items-tbl">
             <thead>
                 <tr>
-                    <th>#</th>
-                    <th>Item ID</th>
-                    <th>Description</th>
-                    <th>QTY</th>
-                    <th>Price</th>
-                    <th>Discount %</th>
-                    <th>Total</th>
-                    <th>Stock</th>
-                    <th>Branch</th>
-                    <th>Action</th>
+                    <th style="${thStyle}">#</th>
+                    <th style="${thStyle}">Type</th>
+                    <th style="${thStyle}">Item ID</th>
+                    <th style="${thStyle}">Description</th>
+                    <th style="${thStyle}">QTY</th>
+                    <th style="${thStyle}">Unit Price</th>
+                    <th style="${thStyle}">Discount</th>
+                    <th style="${thStyle}">Line Total</th>
+                    <th style="${thStyle}">Stock</th>
+                    <th style="${thStyle}">Branch</th>
+                    <th style="${thStyle}">Del</th>
                 </tr>
             </thead>
             <tbody>
     `;
 
         $.each(invoiceState.items, function(index, item) {
-            var stockBadge = item.stock > 10 ? 'badge-success' :
-                item.stock > 0 ? 'badge-warning' : 'badge-danger';
+            var isLens   = item.type === 'lens';
+            var typeBadge = isLens
+                ? '<span class="inv-item-badge-lens"><i class="bi bi-eye"></i> Lens</span>'
+                : '<span class="inv-item-badge-product"><i class="bi bi-eyeglasses"></i> Product</span>';
+
+            var stockClass = item.stock > 10 ? 'inv-stock-ok' : item.stock > 0 ? 'inv-stock-low' : 'inv-stock-out';
+
+            var discountCell;
+            if (item.discount_percent && item.discount_percent > 0) {
+                var savedAmt = roundTo2((item.price * item.quantity) - item.total);
+                discountCell = `<span class="inv-disc-badge"><i class="bi bi-tag"></i> ${item.discount_percent}%</span><br><small style="color:#888;font-size:10px;">-${savedAmt.toFixed(2)}</small>`;
+            } else if (hasGlobalDiscount && totalDiscount > 0) {
+                discountCell = `<span class="inv-global-disc-badge"><i class="bi bi-percent"></i> Global</span>`;
+            } else {
+                discountCell = '<span style="color:#ccc;">—</span>';
+            }
+
+            var rowBg = isLens ? 'background:linear-gradient(90deg,rgba(17,153,142,.04),transparent);' : '';
 
             tableHTML += `
-            <tr>
-                <td><strong>${index + 1}</strong></td>
-                <td><strong style="color: #667eea;">${item.product_id}</strong></td>
-                <td>${item.description}</td>
-                <td>
-                    <div style="display:flex;align-items:center;gap:4px;">
-                        <input type="number" min="1"
-                               value="${item.quantity}"
-                               data-id="${item.id}"
-                               class="qty-input"
-                               style="width:62px;padding:4px 6px;border:2px solid #e0e6ed;border-radius:6px;font-size:13px;font-weight:700;text-align:center;">
-                        <button type="button" class="update-qty-btn" data-id="${item.id}"
-                                style="background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;width:26px;height:26px;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;">
-                            <i class="bi bi-check2"></i>
-                        </button>
+            <tr style="${rowBg}">
+                <td style="${tdStyle}"><strong style="color:#667eea;">${index + 1}</strong></td>
+                <td style="${tdStyle}">${typeBadge}</td>
+                <td style="${tdStyle}"><code style="background:#f0f2ff;color:#4f46e5;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700;">${item.product_id}</code></td>
+                <td style="${tdStyle};text-align:left;max-width:220px;">
+                    <div style="font-weight:600;color:#2d3748;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${item.description}">${item.description}</div>
+                </td>
+                <td style="${tdStyle}">
+                    <div style="display:inline-flex;align-items:center;gap:4px;">
+                        <input type="number" min="1" value="${item.quantity}" data-id="${item.id}" class="inv-qty-input qty-input">
+                        <button type="button" class="inv-qty-btn update-qty-btn" data-id="${item.id}"><i class="bi bi-check2"></i></button>
                     </div>
                 </td>
-              <td>${parseFloat(item.price).toFixed(2)}</td>
-                <td>
-                    ${item.discount_percent && item.discount_percent > 0
-                                ? '<span style="color: #27ae60; font-weight: 700;">' + item.discount_percent + '%</span>'
-                                : '-'}
-                </td>
-                <td><strong>${parseFloat(item.total).toFixed(2)}</strong></td>
-                <td><span class="badge ${stockBadge}">${item.stock}</span></td>
-                <td><span style="color: #3498db;">${item.branch_name}</span></td>
-                <td>
-                    <button type="button" class="btn btn-danger btn-sm delete-item-btn" data-id="${item.id}">
-                        <i class="bi bi-trash"></i>
-                    </button>
+                <td style="${tdStyle}"><span style="font-weight:600;">${parseFloat(item.price).toFixed(2)}</span> <small style="color:#aaa;font-size:10px;">QAR</small></td>
+                <td style="${tdStyle}">${discountCell}</td>
+                <td style="${tdStyle}"><strong style="font-size:15px;color:#2d3748;">${parseFloat(item.total).toFixed(2)}</strong> <small style="color:#aaa;font-size:10px;">QAR</small></td>
+                <td style="${tdStyle}"><span class="${stockClass}">${item.stock}</span></td>
+                <td style="${tdStyle}"><span style="color:#3498db;font-size:12px;font-weight:600;">${item.branch_name}</span></td>
+                <td style="${tdStyle}">
+                    <button type="button" class="inv-del-btn delete-item-btn" data-id="${item.id}" title="Remove item"><i class="bi bi-trash3"></i></button>
                 </td>
             </tr>
         `;
         });
 
-        tableHTML += `
-        </tbody>
-        <tfoot>
-            <tr>
-                <td colspan="3"><strong>TOTAL</strong></td>
-                <td><strong>${invoiceState.totals.total_qty}</strong></td>
-                <td><strong>${parseFloat(invoiceState.totals.subtotal_before).toFixed(2)}</strong></td>
-                <td>-</td>
-                <td colspan="4">
-`;
+        tableHTML += `</tbody><tfoot>`;
 
-// ✅ Compare subtotal_before with grand_total
-        if (parseFloat(invoiceState.totals.subtotal_before) !== parseFloat(invoiceState.totals.grand_total)) {
-            // فيه خصم (عادي أو تأمين أو cardholder)
-            tableHTML += `
-                    <span style="text-decoration: line-through; color: #c8c7c7; font-weight: normal; margin-right: 15px;">
-                        ${parseFloat(invoiceState.totals.subtotal_before).toFixed(2)} QAR
-                    </span>
-                    <strong style="color: #fff; font-size: 20px;">
-                        ${parseFloat(invoiceState.totals.grand_total).toFixed(2)} QAR
-                    </strong>
-`;
-        } else {
-            // مفيش خصم
-            tableHTML += `
-                    <strong>${parseFloat(invoiceState.totals.grand_total).toFixed(2)} QAR</strong>
-`;
-        }
-
+        /* ── Sub-total row ── */
         tableHTML += `
+            <tr class="inv-tfoot-total">
+                <td colspan="4" style="padding:12px 16px;font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.5px;">
+                    <i class="bi bi-list-ul"></i> &nbsp;${invoiceState.items.length} Item(s)
+                </td>
+                <td style="padding:12px 14px;text-align:center;font-weight:800;">${invoiceState.totals.total_qty}</td>
+                <td style="padding:12px 14px;text-align:center;font-weight:800;">${parseFloat(invoiceState.totals.subtotal_before).toFixed(2)}</td>
+                <td style="padding:12px 14px;text-align:center;">—</td>
+                <td colspan="4" style="padding:12px 16px;text-align:right;font-size:15px;font-weight:800;">
+                    Subtotal: ${parseFloat(invoiceState.totals.subtotal_before).toFixed(2)} QAR
                 </td>
             </tr>
-`;
-
-// ✅ Discount row (show if any discount exists)
-        var totalDiscount = parseFloat(invoiceState.totals.subtotal_before) - parseFloat(invoiceState.totals.grand_total);
-        if (totalDiscount > 0) {
-            tableHTML += `
-            <tr style="background: #fff;">
-                <td colspan="11" style="text-align: right; color: #856404;">
-                    <strong>Total Discount: -${totalDiscount.toFixed(2)} QAR</strong>
-                </td>
-            </tr>
-    `;
-        }
-
-        tableHTML += `
-        </tfoot>
-    </table>
-`;
-
-        if (invoiceState.totals.discount_amount > 0) {
-            tableHTML += `
-                <tr style="background: #fff3cd;">
-                    <td colspan="11" style="text-align: right; color: #856404;">
-                        <strong>Discount Applied: -${parseFloat(invoiceState.totals.discount_amount).toFixed(2)} QAR</strong>
-                    </td>
-                </tr>
         `;
+
+        /* ── Discount row (only when discount exists) ── */
+        if (totalDiscount > 0) {
+            var discLabel = '';
+            if (invoiceState.discount.type === 'percentage') {
+                discLabel = invoiceState.discount.value + '% off';
+            } else if (invoiceState.discount.type === 'fixed') {
+                discLabel = 'Fixed ' + parseFloat(invoiceState.discount.value).toFixed(2) + ' QAR off';
+            } else if (invoiceState.discount.payer_type) {
+                discLabel = invoiceState.discount.payer_type.charAt(0).toUpperCase() + invoiceState.discount.payer_type.slice(1) + ' discount';
+            }
+            tableHTML += `
+            <tr class="inv-tfoot-discount">
+                <td colspan="7" style="padding:10px 16px;font-weight:700;font-size:13px;">
+                    <i class="bi bi-tag-fill"></i> &nbsp;Discount Applied ${discLabel ? '(' + discLabel + ')' : ''}
+                </td>
+                <td colspan="4" style="padding:10px 16px;text-align:right;font-size:15px;font-weight:800;">
+                    -${totalDiscount.toFixed(2)} QAR
+                </td>
+            </tr>
+            `;
         }
 
+        /* ── Grand total row ── */
         tableHTML += `
-            </tfoot>
-        </table>
-    `;
+            <tr class="inv-tfoot-grand">
+                <td colspan="7" style="padding:14px 16px;font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.5px;">
+                    <i class="bi bi-check-circle-fill"></i> &nbsp;Grand Total
+                </td>
+                <td colspan="4" style="padding:14px 16px;text-align:right;font-size:20px;font-weight:900;">
+                    ${parseFloat(invoiceState.totals.grand_total).toFixed(2)} QAR
+                </td>
+            </tr>
+        `;
+
+        tableHTML += `</tfoot></table></div>`;
 
         container.html(tableHTML);
 

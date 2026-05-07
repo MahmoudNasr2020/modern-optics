@@ -9,7 +9,7 @@ class LensPurchaseOrder extends Model
     protected $table = 'lens_purchase_orders';
 
     protected $fillable = [
-        'po_number', 'invoice_id', 'branch_id', 'lab_id', 'lab_name',
+        'po_number', 'po_type', 'invoice_id', 'branch_id', 'lab_id', 'lab_name',
         'status', 'ordered_by', 'received_by', 'notes', 'ordered_at', 'received_at',
         'is_reorder', 'original_po_id',
     ];
@@ -51,12 +51,13 @@ class LensPurchaseOrder extends Model
     public function isReceived()  { return $this->status === 'received'; }
     public function isCancelled() { return $this->status === 'cancelled'; }
 
-    public static function generatePoNumber()
+    public static function generatePoNumber($type = 'lens')
     {
-        $year  = now()->format('Y');
-        $last  = static::whereYear('created_at', $year)->lockForUpdate()->max('id') ?? 0;
-        $seq   = str_pad($last + 1, 4, '0', STR_PAD_LEFT);
-        return "PO-{$year}-{$seq}";
+        $year   = now()->format('Y');
+        $prefix = $type === 'contact_lens' ? 'CPO' : 'PO';
+        $last   = static::whereYear('created_at', $year)->lockForUpdate()->max('id') ?? 0;
+        $seq    = str_pad($last + 1, 4, '0', STR_PAD_LEFT);
+        return "{$prefix}-{$year}-{$seq}";
     }
 
     public function getStatusBadgeAttribute()

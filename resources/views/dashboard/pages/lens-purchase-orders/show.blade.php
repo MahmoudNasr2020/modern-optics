@@ -110,9 +110,15 @@
                     @endcan
                     @can('increase-stock')
                         @if(!$po->isReceived() && !$po->isCancelled())
-                            <a href="{{ route('dashboard.lens-purchase-orders.receive', $po->id) }}" class="action-btn btn-receive">
-                                <i class="bi bi-box-arrow-in-down"></i> Receive Lenses
-                            </a>
+                            @if($po->po_type === 'contact_lens')
+                                <a href="{{ route('dashboard.lens-purchase-orders.cl.receive', $po->id) }}" class="action-btn btn-receive">
+                                    <i class="bi bi-eye"></i> Receive Contact Lenses
+                                </a>
+                            @else
+                                <a href="{{ route('dashboard.lens-purchase-orders.receive', $po->id) }}" class="action-btn btn-receive">
+                                    <i class="bi bi-box-arrow-in-down"></i> Receive Lenses
+                                </a>
+                            @endif
                         @endif
                     @endcan
                     @can('edit-stock')

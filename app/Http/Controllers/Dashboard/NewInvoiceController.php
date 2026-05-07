@@ -67,9 +67,17 @@ class NewInvoiceController extends Controller
         // Get customers for search modal
         $customers = Customer::all();
 
-        $brands     = Brand::orderBy('brand_name')->get();       // ✅ NEW
-        $models     = glassModel::orderBy('model_id')->get();    // ✅ NEW
+        $brands     = Brand::orderBy('brand_name')->get();
+        $models     = glassModel::orderBy('model_id')->get();
         $lensBrands = LensBrand::all();
+
+        // Distinct colors & sizes for Advanced Search selects
+        $productColors = \DB::table('products')
+            ->whereNotNull('color')->where('color', '!=', '')
+            ->distinct()->orderBy('color')->pluck('color');
+        $productSizes  = \DB::table('products')
+            ->whereNotNull('size')->where('size', '!=', '')
+            ->distinct()->orderBy('size')->pluck('size');
 
         // Initialize session if not exists
         if (!session()->has('invoice_draft')) {
@@ -124,7 +132,9 @@ class NewInvoiceController extends Controller
             'brands',
             'models',
             'lensBrands',
-            'invoiceDesign'
+            'invoiceDesign',
+            'productColors',
+            'productSizes'
         ));
     }
 
@@ -184,15 +194,6 @@ class NewInvoiceController extends Controller
                 ], 404);
             }
 
-            // For products only: check stock availability
-            // Lenses are lab-order items — stock can be 0, always allow
-            if ($request->type === 'product' && $item['stock'] < $request->quantity) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Insufficient stock. Only {$item['stock']} units available"
-                ], 400);
-            }
-
             // Get current draft
             $draft = session('invoice_draft');
 
@@ -200,16 +201,8 @@ class NewInvoiceController extends Controller
             $existingIndex = $this->findItemInDraft($draft['items'], $request->product_id, $request->type);
 
             if ($existingIndex !== false) {
-                // Update quantity
+                // Update quantity — no stock ceiling enforced (shop can order externally)
                 $newQty = $draft['items'][$existingIndex]['quantity'] + $request->quantity;
-
-                // For products only: enforce stock ceiling
-                if ($request->type === 'product' && $newQty > $item['stock']) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Cannot add. Total quantity would exceed available stock ({$item['stock']} units)"
-                    ], 400);
-                }
 
                 $draft['items'][$existingIndex]['quantity'] = $newQty;
                 $draft['items'][$existingIndex]['total'] = $this->calculateItemTotal(
@@ -292,14 +285,7 @@ class NewInvoiceController extends Controller
 
         $item = $draft['items'][$itemIndex];
 
-        // Check stock — lenses are lab-order items, skip stock check for them
-        $itemType = $item['type'] ?? 'product';
-        if ($itemType !== 'lens' && $request->quantity > $item['stock']) {
-            return response()->json([
-                'success' => false,
-                'message' => "Insufficient stock. Only {$item['stock']} units available"
-            ], 400);
-        }
+        // No stock ceiling enforced — shop can order externally
 
         // Update quantity and total
         $draft['items'][$itemIndex]['quantity'] = $request->quantity;
@@ -589,13 +575,12 @@ class NewInvoiceController extends Controller
         try {
 
             $query = Product::query()
-                ->with(['branchStocks' => function($q) use ($branch_id) {
-                    $q->where('branch_id', $branch_id);
-                }])
-                ->whereHas('branchStocks', function($q) use ($branch_id) {
-                    $q->where('branch_id', $branch_id)
-                        ->where('quantity', '>', 0);
-                });
+                ->with([
+                    'branchStocks' => function($q) use ($branch_id) {
+                        $q->where('branch_id', $branch_id);
+                    },
+                    'brand',
+                ]);
 
             // Apply filters
             if ($request->category_id) {
@@ -615,7 +600,7 @@ class NewInvoiceController extends Controller
             }
 
             if ($request->color) {
-                $query->where('color', 'LIKE', "%{$request->color}%");
+                $query->where('color', $request->color);
             }
 
             if ($request->brand_segment) {
@@ -647,7 +632,6 @@ class NewInvoiceController extends Controller
             }
 
             $products = $query->orderBy('product_id', 'ASC')
-                ->limit(50)
                 ->get();
 
             $branch = Branch::find($branch_id);
@@ -657,26 +641,28 @@ class NewInvoiceController extends Controller
                 $branchStock = $product->branchStocks->first();
 
                 return [
-                    'id' => $product->id,
-                    'product_id' => $product->product_id,
-                    'description' => $product->description,
-                    'category_id' => $product->category_id,
-                    'brand_id' => $product->brand_id,
-                    'model_id' => $product->model_id,
-                    'size' => $product->size,
-                    'color' => $product->color,
-                    'brand_segment' => $product->brand_segment,
-                    'lense_use' => $product->lense_use,
-                    'power' => $product->power,
-                    'sign' => $product->sign,
-                    'type' => $product->type,
-                    'price' => (float) $product->price,
-                    'retail_price' => (float) $product->retail_price,
-                    'tax' => (float) $product->tax,
-                    'stock' => $branchStock ? $branchStock->quantity : 0,
+                    'id'               => $product->id,
+                    'product_id'       => $product->product_id,
+                    'description'      => $product->description,
+                    'category_id'      => $product->category_id,
+                    'brand_id'         => $product->brand_id,
+                    'brand_name'       => $product->brand ? $product->brand->brand_name : null,
+                    'model_id'         => $product->model_id,
+                    'size'             => $product->size,
+                    'color'            => $product->color,
+                    'brand_segment'    => $product->brand_segment,
+                    'lense_use'        => $product->lense_use,
+                    'power'            => $product->power,
+                    'sign'             => $product->sign,
+                    'type'             => $product->type,
+                    'price'            => (float) $product->price,
+                    'retail_price'     => (float) $product->retail_price,
+                    'tax'              => (float) $product->tax,
+                    'stock'            => $branchStock ? $branchStock->quantity : 0,
                     'available_quantity' => $branchStock ? $branchStock->available_quantity : 0,
-                    'branch_id' => $branch->id,
-                    'branch_name' => $branch->name,
+                    'in_branch_stock'  => $branchStock ? true : false,
+                    'branch_id'        => $branch->id,
+                    'branch_name'      => $branch->name,
                 ];
             });
 
@@ -692,6 +678,25 @@ class NewInvoiceController extends Controller
                 'message' => 'Search error: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Return distinct sizes & colors filtered by category / brand / model
+     * Used by Advanced Search to populate size/color selects after model is chosen
+     */
+    public function getSizesColors(Request $request)
+    {
+        $q = Product::query();
+        if ($request->category_id) $q->where('category_id', $request->category_id);
+        if ($request->brand_id)    $q->where('brand_id',    $request->brand_id);
+        if ($request->model_id)    $q->where('model_id',    $request->model_id);
+
+        $sizes  = (clone $q)->whereNotNull('size')->where('size','!=','')
+                    ->distinct()->orderBy('size')->pluck('size');
+        $colors = (clone $q)->whereNotNull('color')->where('color','!=','')
+                    ->distinct()->orderBy('color')->pluck('color');
+
+        return response()->json(['sizes' => $sizes, 'colors' => $colors]);
     }
 
     /**
@@ -725,7 +730,7 @@ class NewInvoiceController extends Controller
         if (!$product) {
             return response()->json([
                 'success' => false,
-                'message' => 'Product not found or out of stock in this branch'
+                'message' => 'Product not found in this branch'
             ], 404);
         }
 
@@ -767,6 +772,7 @@ class NewInvoiceController extends Controller
                 'doctor_id' => $test->doctor_id,
                 'doctor_name' => $doctor ? $doctor->name : '-',
                 'visit_date' => $test->visit_date,
+                'is_cancelled' => (bool)($test->is_cancelled ?? false),
                 'sph_right_sign' => $test->sph_right_sign,
                 'sph_right_value' => $test->sph_right_value,
                 'cyl_right_sign' => $test->cyl_right_sign,
@@ -1190,7 +1196,8 @@ class NewInvoiceController extends Controller
                 return [
                     'id' => $company->id,
                     'name' => $type === 'insurance' ? $company->company_name : $company->cardholder_name,
-                    'categories' => $categories
+                    'categories' => $categories,
+                    'lens_discount_percent' => (float)($company->lens_discount_percent ?? 0),
                 ];
             });
 
@@ -1242,7 +1249,8 @@ class NewInvoiceController extends Controller
                     'id' => $company->id,
                     'name' => $name,
                     'type' => $type,
-                    'categories' => $categories
+                    'categories' => $categories,
+                    'lens_discount_percent' => (float)($company->lens_discount_percent ?? 0),
                 ]
             ]);
 
@@ -1303,9 +1311,17 @@ class NewInvoiceController extends Controller
                 $categoryDiscounts[$cat->id] = (float)$cat->pivot->discount_percent;
             }
 
-            // Apply discount to each item based on category
+            // Lens discount configured on the company
+            $lensDiscountPercent = (float)($company->lens_discount_percent ?? 0);
+
+            // Apply discount to each item
             foreach ($draft['items'] as &$item) {
-                if ($item['category_id'] && isset($categoryDiscounts[$item['category_id']])) {
+                if ($item['type'] === 'lens') {
+                    // Apply the company's lens discount (if any)
+                    $item['discount_percent'] = $lensDiscountPercent;
+                    $item['total'] = $this->calculateItemTotal($item);
+                } elseif ($item['category_id'] && isset($categoryDiscounts[$item['category_id']])) {
+                    // Apply per-category discount for products
                     $item['discount_percent'] = $categoryDiscounts[$item['category_id']];
                     $item['total'] = $this->calculateItemTotal($item);
                 } else {
@@ -1419,7 +1435,7 @@ class NewInvoiceController extends Controller
         $validator = Validator::make($request->all(), [
             'payments' => 'required|array|min:1',
             'payments.*.type' => 'required|in:Cash,Atm,visa,Master Card,Gift Voudire',
-            'payments.*.amount' => 'required|numeric|min:0'
+            'payments.*.amount' => 'required|numeric|min:0.01'
         ]);
 
         if ($validator->fails()) {
@@ -1552,15 +1568,12 @@ class NewInvoiceController extends Controller
      */
 
     /**
-     * Generate unique invoice code
+     * Generate unique invoice code — sequential (MAX + 1)
      */
     private function generateInvoiceCode()
     {
-        do {
-            $code = mt_rand(10000000, 99999999);
-        } while (Invoice::where('invoice_code', $code)->exists());
-
-        return $code;
+        $max = (int) Invoice::max('invoice_code');
+        return $max + 1;
     }
 
 
@@ -1606,10 +1619,7 @@ class NewInvoiceController extends Controller
         $branchStock = $product->branchStocks->first();
         $branch = Branch::find($branch_id);
 
-        if (!$branchStock || $branchStock->quantity <= 0) {
-            return null;
-        }
-
+        // Allow adding even with 0 stock — shop can order externally
         return [
             'id'          => $product->id,
             'product_id'  => $product->product_id,
@@ -1619,7 +1629,7 @@ class NewInvoiceController extends Controller
             'retail_price'=> (float) $product->retail_price,
             'tax'         => (float) $product->tax,
             'net_price'   => (float) $product->retail_price,
-            'stock'       => $branchStock->available_quantity,
+            'stock'       => $branchStock ? $branchStock->available_quantity : 0,
             'branch_id'   => $branch_id,
             'branch_name' => $branch->name ?? 'Unknown',
         ];
@@ -1682,22 +1692,7 @@ class NewInvoiceController extends Controller
                 ->where('stockable_id', $product->id)
                 ->first();
 
-            if (!$branchStock) {
-                $errors[] = "Stock not found for: {$item['description']}";
-                continue;
-            }
-
-            if ($branchStock->available_quantity < $item['quantity']) {
-                $errors[] = "{$item['description']}: Insufficient stock (Available: {$branchStock->available_quantity}, Required: {$item['quantity']})";
-            }
-        }
-
-        if (!empty($errors)) {
-            return [
-                'success' => false,
-                'message' => 'Some items have insufficient stock',
-                'errors'  => $errors,
-            ];
+            // Stock can be 0 — shop may order externally, so no blocking
         }
 
         return ['success' => true];
@@ -1776,49 +1771,66 @@ class NewInvoiceController extends Controller
     }
 
     /**
-     * Reserve stock for invoice item (NEW)
+     * Reserve stock for invoice item.
+     * Always succeeds — if stock is 0 or the product has no BranchStock record
+     * in this branch (e.g. ordered externally), we create the record and reserve
+     * anyway, allowing reserved_quantity > quantity (negative available).
+     * This gives visibility into "pending demand" on the stock dashboard.
      */
     private function reserveStock($item, $branchId, $invoiceId)
     {
         $user = auth()->user();
 
-        try {
-            // ── LENSES: NO stock reservation at invoice-save time ─────────────
-            // Stock flow for lenses:
-            //   IN  → when Lab Order is received (LensPurchaseOrderController::markReceived)
-            //   OUT → when customer picks up the invoice (InvoiceItems::deliverItem)
-            // Nothing should happen here — reserving at save time would cause a
-            // double deduction once the item is delivered.
-            if ($item['type'] === 'lens') {
-                return;
-            }
-
-            // ── PRODUCTS: existing BranchStock reservation ────────────────────
-            $product = Product::where('product_id', $item['product_id'])->first();
-
-            if (!$product) {
-                throw new \Exception("Product {$item['product_id']} not found");
-            }
-
-            $product->reserveInBranch($branchId, $item['quantity']);
-
-            StockMovement::create([
-                'branch_id'      => $branchId,
-                'product_id'     => $item['product_id'],
-                'stockable_type' => 'App\Product',
-                'stockable_id'   => $product->id,
-                'type'           => 'reserve',
-                'quantity'       => $item['quantity'],
-                'reference_type' => 'App\Invoice',
-                'reference_id'   => $invoiceId,
-                'notes'          => "Reserved for invoice #{$invoiceId} - {$item['description']}",
-                'user_id'        => $user->id,
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error("Failed to reserve stock: " . $e->getMessage());
-            throw $e;
+        // ── LENSES: NO stock reservation at invoice-save time ─────────────────
+        // Lenses are lab-order items; stock is tracked via LensStockEntry.
+        // Reserving here would cause a double deduction on delivery.
+        if ($item['type'] === 'lens') {
+            return;
         }
+
+        // ── PRODUCTS ──────────────────────────────────────────────────────────
+        $product = Product::where('product_id', $item['product_id'])->first();
+
+        if (!$product) {
+            // Product not in catalog — skip silently (shop may have custom items)
+            \Log::warning("reserveStock: product not found [{$item['product_id']}] for invoice #{$invoiceId}");
+            return;
+        }
+
+        // Get or create a BranchStock row for this product+branch.
+        // If the product is not yet stocked in this branch (qty = 0),
+        // we still create the record so the reservation is visible.
+        $stock = BranchStock::firstOrCreate(
+            [
+                'branch_id'      => $branchId,
+                'stockable_type' => 'App\\Product',
+                'stockable_id'   => $product->id,
+            ],
+            [
+                'product_id'       => $product->id,
+                'quantity'         => 0,
+                'reserved_quantity'=> 0,
+                'min_quantity'     => 0,
+                'max_quantity'     => 0,
+            ]
+        );
+
+        // Increment reserved_quantity directly — no availability check.
+        // This intentionally allows reserved_quantity > quantity when stock is 0.
+        $stock->increment('reserved_quantity', $item['quantity']);
+
+        StockMovement::create([
+            'branch_id'      => $branchId,
+            'product_id'     => $item['product_id'],
+            'stockable_type' => 'App\\Product',
+            'stockable_id'   => $product->id,
+            'type'           => 'reserve',
+            'quantity'       => $item['quantity'],
+            'reference_type' => 'App\\Invoice',
+            'reference_id'   => $invoiceId,
+            'notes'          => "Reserved for invoice #{$invoiceId} - {$item['description']}",
+            'user_id'        => $user->id,
+        ]);
     }
 
     /**
@@ -1831,7 +1843,7 @@ class NewInvoiceController extends Controller
             'pickup_date' => 'required|date',
             'payments' => 'required|array|min:1',
             'payments.*.type' => 'required',
-            'payments.*.amount' => 'required|numeric|min:0'
+            'payments.*.amount' => 'required|numeric|min:0.01'
         ]);
 
         if ($validator->fails()) {
@@ -2024,7 +2036,7 @@ class NewInvoiceController extends Controller
             'pickup_date' => 'required|date',
             'payments' => 'required|array|min:1',
             'payments.*.type' => 'required',
-            'payments.*.amount' => 'required|numeric|min:0'
+            'payments.*.amount' => 'required|numeric|min:0.01'
         ]);
 
         if ($validator->fails()) {
@@ -2178,20 +2190,23 @@ class NewInvoiceController extends Controller
             DB::commit();
 
             try {
-                if (Settings::get('send_whatsapp') == true)
-                {
+                if (Settings::get('send_whatsapp') == 1) {
                     $whatsapp = app(InvoiceWhatsAppNotifier::class);
                     $whatsapp->sendInvoiceCreated($invoice);
 
-                    // 2. رسالة لكل دفعة
-                    foreach ($request->payments as $paymentData) {
-                        $paymentMethod = $this->getPaymentMethodText($paymentData['type']);
-                        $whatsapp->sendPaymentReceived($invoice, $paymentData['amount'], $paymentMethod);
+                    // رسالة لكل دفعة
+                    if (!empty($request->payments)) {
+                        foreach ($request->payments as $paymentData) {
+                            $paymentMethod = $this->getPaymentMethodText($paymentData['type'] ?? 'cash');
+                            $whatsapp->sendPaymentReceived($invoice, $paymentData['amount'] ?? 0, $paymentMethod);
+                        }
                     }
                 }
-
-            } catch (\Exception $e) {
-                \Log::warning("WhatsApp failed: " . $e->getMessage());
+            } catch (\Throwable $e) {
+                \Log::warning("WhatsApp failed (invoice created): " . $e->getMessage(), [
+                    'invoice_id' => $invoice->id ?? null,
+                    'trace'      => $e->getTraceAsString(),
+                ]);
             }
 
             // Clear session

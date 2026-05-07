@@ -56,13 +56,13 @@
         updatePayerFromPayments();
     }
 
-    /* ── Recalculate total paid and push it to the sidebar Payer field ── */
+    /* ── Recalculate total paid, update sidebar, and show live remaining balance ── */
     function updatePayerFromPayments() {
-        var total = 0;
+        var totalPaidNow = 0;
         $('.payment-amount').each(function () {
-            total += parseFloat($(this).val()) || 0;
+            totalPaidNow += parseFloat($(this).val()) || 0;
         });
-        var display = total > 0 ? total.toFixed(2) : '—';
+        var display = totalPaidNow > 0 ? totalPaidNow.toFixed(2) : '—';
 
         /* Works for v2, v3 (id-based) and v4 (data-attribute-based) */
         $('#sidebar_payer').text(display);
@@ -70,10 +70,48 @@
 
         /* Orange highlight when any amount is entered */
         var payerRow = $('#sidebar_payer, [data-summary-field="payer"]').first().closest('.iv2-summary-row');
-        if (total > 0) {
+        if (totalPaidNow > 0) {
             payerRow.css({ background: '#fff8f1', borderRadius: '8px', padding: '8px 10px', margin: '4px 0' });
         } else {
             payerRow.css({ background: '', borderRadius: '', padding: '', margin: '' });
+        }
+
+        /* ── Live remaining balance display below payments container ── */
+        var grandTotal  = parseFloat(invoiceState.totals.grand_total) || 0;
+        var remaining   = Math.max(0, roundTo2(grandTotal - totalPaidNow));
+        var isOverpaid  = totalPaidNow > grandTotal;
+        var isFullyPaid = !isOverpaid && remaining === 0;
+        var minRequired = roundTo2(grandTotal / 2);
+        var meetsMin    = totalPaidNow >= minRequired;
+
+        var balanceBg    = isFullyPaid ? '#f0fdf4' : isOverpaid ? '#fef2f2' : '#fffbeb';
+        var balanceColor = isFullyPaid ? '#166534' : isOverpaid ? '#991b1b' : '#92400e';
+        var balanceBorder= isFullyPaid ? '#bbf7d0' : isOverpaid ? '#fecaca' : '#fef08a';
+        var icon         = isFullyPaid ? '✅' : isOverpaid ? '⚠️' : '🔔';
+        var msg          = isFullyPaid
+            ? 'Invoice fully paid!'
+            : isOverpaid
+                ? 'Amount exceeds invoice total by ' + roundTo2(totalPaidNow - grandTotal).toFixed(2) + ' QAR'
+                : 'Remaining: <strong>' + remaining.toFixed(2) + ' QAR</strong>'
+                  + (meetsMin ? '' : ' &nbsp;·&nbsp; <span style="color:#dc2626;">Min required: ' + minRequired.toFixed(2) + ' QAR</span>');
+
+        if (grandTotal > 0) {
+            var balanceHTML = `
+                <div id="paymentBalanceInfo" style="margin-top:12px;padding:12px 16px;border-radius:10px;border:1.5px solid ${balanceBorder};background:${balanceBg};color:${balanceColor};font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;">
+                    <span style="font-size:18px;">${icon}</span>
+                    <div>
+                        <div>Invoice Total: <strong>${grandTotal.toFixed(2)} QAR</strong> &nbsp;·&nbsp; Paid: <strong>${totalPaidNow.toFixed(2)} QAR</strong></div>
+                        <div style="margin-top:3px;">${msg}</div>
+                    </div>
+                </div>`;
+            /* Replace or insert the balance info element */
+            if ($('#paymentBalanceInfo').length) {
+                $('#paymentBalanceInfo').replaceWith(balanceHTML);
+            } else {
+                $('#paymentsContainer').after(balanceHTML);
+            }
+        } else {
+            $('#paymentBalanceInfo').remove();
         }
     }
 
@@ -320,7 +358,17 @@
         });
     }
 
+    /* ── Double-submit guard ── */
+    var _invoiceSubmitting = false;
+
     function submitToBackend(doctor_id, pickup_date, payments) {
+        if (_invoiceSubmitting) {
+            console.warn('⚠️ submitToBackend called while already submitting — ignored');
+            return;
+        }
+        _invoiceSubmitting = true;
+        $('#submitInvoiceBtn').prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Submitting…');
+
         showLoading();
 
         $.ajax({
@@ -352,6 +400,9 @@
                         }
                     });
                 } else {
+                    _invoiceSubmitting = false;
+                    $('#submitInvoiceBtn').prop('disabled', false).html('<i class="bi bi-send"></i> Submit Invoice');
+
                     var errorHTML = '<p>' + response.message + '</p>';
 
                     if (response.errors && Array.isArray(response.errors)) {
@@ -372,6 +423,8 @@
                 }
             },
             error: function() {
+                _invoiceSubmitting = false;
+                $('#submitInvoiceBtn').prop('disabled', false).html('<i class="bi bi-send"></i> Submit Invoice');
                 hideLoading();
                 Swal.fire({
                     icon: 'error',
