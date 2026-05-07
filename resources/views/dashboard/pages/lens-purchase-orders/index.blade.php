@@ -79,7 +79,16 @@
 </style>
 
 <section class="content-header">
-    <h1><i class="bi bi-flask"></i> Lab Orders <small>Lens Purchase Orders</small></h1>
+    @php $currentType = request('type'); @endphp
+    <h1>
+        @if($currentType === 'contact_lens')
+            <i class="bi bi-eye" style="color:#1565c0;"></i> CL Lab Orders
+            <small>Contact Lens Purchase Orders</small>
+        @else
+            <i class="bi bi-flask"></i> Lab Orders
+            <small>Lens Purchase Orders</small>
+        @endif
+    </h1>
 </section>
 
 <div class="lpo-page">
@@ -184,9 +193,32 @@
         </div>
         @endcan
 
+        {{-- ── Type Tabs ── --}}
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+            <a href="{{ route('dashboard.lens-purchase-orders.index') }}"
+               style="padding:8px 18px;border-radius:20px;font-size:13px;font-weight:700;text-decoration:none;
+                      {{ !$poType ? 'background:linear-gradient(135deg,#e67e22,#d35400);color:#fff;box-shadow:0 3px 10px rgba(0,0,0,.15);' : 'background:#f0f2f5;color:#666;' }}">
+                <i class="bi bi-grid-3x3-gap-fill"></i> All Orders
+            </a>
+            <a href="{{ route('dashboard.lens-purchase-orders.index') }}?type=lens"
+               style="padding:8px 18px;border-radius:20px;font-size:13px;font-weight:700;text-decoration:none;
+                      {{ $poType==='lens' ? 'background:linear-gradient(135deg,#6c3483,#9b59b6);color:#fff;box-shadow:0 3px 10px rgba(0,0,0,.15);' : 'background:#f0f2f5;color:#666;' }}">
+                <i class="bi bi-eyeglasses"></i> Lenses Only
+            </a>
+            <a href="{{ route('dashboard.lens-purchase-orders.index') }}?type=contact_lens"
+               style="padding:8px 18px;border-radius:20px;font-size:13px;font-weight:700;text-decoration:none;
+                      {{ $poType==='contact_lens' ? 'background:linear-gradient(135deg,#1565c0,#1976d2);color:#fff;box-shadow:0 3px 10px rgba(0,0,0,.15);' : 'background:#f0f2f5;color:#666;' }}">
+                <i class="bi bi-eye"></i> Contact Lenses Only
+            </a>
+        </div>
+
         {{-- ── Filter ── --}}
         <div class="filter-box">
             <form method="GET" action="{{ route('dashboard.lens-purchase-orders.index') }}" class="row">
+                {{-- Preserve the current type filter --}}
+                @if($poType)
+                    <input type="hidden" name="type" value="{{ $poType }}">
+                @endif
                 <div class="col-md-5">
                     <input type="text" name="search" class="form-control"
                            placeholder="Search by PO# or Invoice#..."
@@ -208,7 +240,8 @@
                 </div>
                 <div class="col-md-2 text-right">
                     @if(request()->hasAny(['search','status']))
-                    <a href="{{ route('dashboard.lens-purchase-orders.index') }}" class="btn btn-default" style="height:42px;line-height:22px;">
+                    <a href="{{ route('dashboard.lens-purchase-orders.index') }}{{ $poType ? '?type='.$poType : '' }}"
+                       class="btn btn-default" style="height:42px;line-height:22px;">
                         <i class="bi bi-x-circle"></i> Clear
                     </a>
                     @endif

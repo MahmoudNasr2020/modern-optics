@@ -405,7 +405,11 @@
                         </a>
                     </li>
                     @can('view-lens-purchase-orders')
-                        <li class="{{ Request::routeIs('dashboard.lens-purchase-orders.index') && request('type') === 'contact_lens' ? 'active' : '' }}">
+                        @php
+                            $clLabActive = Request::routeIs('dashboard.lens-purchase-orders.index')
+                                        && request('type') === 'contact_lens';
+                        @endphp
+                        <li class="{{ $clLabActive ? 'active' : '' }}">
                             <a href="{{ route('dashboard.lens-purchase-orders.index') }}?type=contact_lens">
                                 <i class="bi bi-eye" style="color:#3498db;font-size:13px;"></i> CL Lab Orders
                             </a>

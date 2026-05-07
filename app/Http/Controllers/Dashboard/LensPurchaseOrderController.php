@@ -32,24 +32,37 @@ class LensPurchaseOrderController extends Controller
         $query = LensPurchaseOrder::with(['invoice.customer', 'branch', 'lab', 'orderedBy', 'items'])
             ->orderByDesc('created_at');
 
+        // ── Filter by po_type ──────────────────────────────────────
+        $poType = $request->type; // 'contact_lens' | 'lens' | null (all)
+        if ($poType === 'contact_lens') {
+            $query->where('po_type', 'contact_lens');
+        } elseif ($poType === 'lens') {
+            $query->where(function ($q) {
+                $q->where('po_type', 'lens')->orWhereNull('po_type');
+            });
+        }
+        // if no type param → show all orders
+
         if ($request->status) {
             $query->where('status', $request->status);
         }
         if ($request->search) {
             $search = $request->search;
-            $query->where('po_number', 'like', '%' . $search . '%')
-                  ->orWhereHas('invoice', function ($q) use ($search) {
-                      $q->where('invoice_code', 'like', '%' . $search . '%');
+            $query->where(function ($q) use ($search) {
+                $q->where('po_number', 'like', '%' . $search . '%')
+                  ->orWhereHas('invoice', function ($q2) use ($search) {
+                      $q2->where('invoice_code', 'like', '%' . $search . '%');
                   });
+            });
         }
         if (!auth()->user()->canSeeAllBranches()) {
             $query->where('branch_id', auth()->user()->branch_id);
         }
 
-        $orders = $query->paginate(20);
+        $orders = $query->paginate(20)->appends($request->query());
         $labs   = LensLab::active()->orderBy('name')->get();
 
-        return view('dashboard.pages.lens-purchase-orders.index', compact('orders', 'labs'));
+        return view('dashboard.pages.lens-purchase-orders.index', compact('orders', 'labs', 'poType'));
     }
 
     // ─── Search invoice by code then redirect to create ─────────
