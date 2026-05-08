@@ -385,7 +385,8 @@
             {{-- ── Contact Lenses standalone treeview ── --}}
             @php
                 $clActive = Request::routeIs('dashboard.contact-lenses.*')
-                    || Request::routeIs('dashboard.lens-purchase-orders.cl.*');
+                    || Request::routeIs('dashboard.lens-purchase-orders.cl.*')
+                    || Request::routeIs('dashboard.lens-purchase-orders.cl.index');
             @endphp
             <li class="treeview {{ $clActive ? 'active' : '' }}">
                 <a href="javascript:void(0)">
@@ -405,12 +406,8 @@
                         </a>
                     </li>
                     @can('view-lens-purchase-orders')
-                        @php
-                            $clLabActive = Request::routeIs('dashboard.lens-purchase-orders.index')
-                                        && request('type') === 'contact_lens';
-                        @endphp
-                        <li class="{{ $clLabActive ? 'active' : '' }}">
-                            <a href="{{ route('dashboard.lens-purchase-orders.index') }}?type=contact_lens">
+                        <li class="{{ Request::routeIs('dashboard.lens-purchase-orders.cl.index') ? 'active' : '' }}">
+                            <a href="{{ route('dashboard.lens-purchase-orders.cl.index') }}">
                                 <i class="bi bi-eye" style="color:#3498db;font-size:13px;"></i> CL Lab Orders
                             </a>
                         </li>

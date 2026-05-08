@@ -261,6 +261,7 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
         // Damaged lenses management (هالك)
         Route::get('/damaged/list',                     'LensPurchaseOrderController@damagedLenses')->name('damaged-list');
         // ── Contact Lens Lab Orders ──────────────────────────────
+        Route::get('/cl',                               'LensPurchaseOrderController@indexCL')->name('cl.index');
         Route::get('/cl/create/{invoiceId}',            'LensPurchaseOrderController@createCL')->name('cl.create');
         Route::post('/cl/store',                        'LensPurchaseOrderController@storeCL')->name('cl.store');
         Route::get('/{id}/receive-cl',                  'LensPurchaseOrderController@receiveCLForm')->name('cl.receive');
